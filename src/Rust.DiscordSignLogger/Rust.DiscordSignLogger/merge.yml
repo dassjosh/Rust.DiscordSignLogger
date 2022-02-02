@@ -1,0 +1,51 @@
+# What platform to write the code file for (Oxide, uMod)
+Platform: Oxide
+Merge Settings:
+# Outputted plugin name
+  Plugin Name: DiscordSignLogger
+  # Outputted plugin base class
+  Plugin Base Class: RustPlugin
+  # Which type of file to output (Plugin, Framework, or MergeFramework)
+  Creator Mode: Plugin
+  # Paths to use when reading in source code relative to the merge config
+  Plugin Input Paths:
+  - ./
+  # Paths to use when writing the plugin file relative to the merge config
+  Plugin Output Paths:
+  - ../../../
+  # Oxide //References: definitions
+  Reference Definitions:
+  - System.Drawing
+  # #define definitions
+  Define Definitions: []
+  # Paths to be ignored when searching for source code relative to merge config
+  Ignore Paths: []
+  # Files to be ignored when searching for source code relative to merge config
+  Ignore Files: []
+  # Namespaces to ignore when processing output file
+  Ignore Namespaces:
+  - Rust.DiscordSignLogger
+  Code Style:
+  # Character to use for code indents
+    Indent Character: ' '
+    # The amount of characters to use when indenting once
+    Indent Char Amount: 4
+    # Indent value will increase / decrease by this number
+    Indent Multiplier: 1
+    # String to use for new lines in code
+    New Line String: "\r\n"
+    # Adds the code file path in a region
+    Write The Relative File Path In Region: true
+    # Adds the code file path in a region
+    Keep Code Comments: true
+Compile Settings:
+  Assembly Paths:
+  - ../../References
+  # Ignores the following paths relative to the merge config
+  Ignore Paths:
+  - ../../References/x86
+  - ../../References/x64
+  # Ignores the following files relative to the merge config
+  Ignore Files:
+  - ../../References/Newtonsoft.Json.dll
+  Compile Log Level (Hidden, Info, Warning, Error): Error

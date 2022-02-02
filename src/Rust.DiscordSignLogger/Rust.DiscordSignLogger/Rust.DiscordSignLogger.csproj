@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net48</TargetFramework>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Assembly-CSharp.dll</HintPath>
+      </Reference>
+      <Reference Include="Assembly-CSharp-firstpass, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Assembly-CSharp-firstpass.dll</HintPath>
+      </Reference>
+      <Reference Include="Facepunch.Console, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Facepunch.Console.dll</HintPath>
+      </Reference>
+      <Reference Include="Facepunch.Network, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Facepunch.Network.dll</HintPath>
+      </Reference>
+      <Reference Include="Facepunch.System, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Facepunch.System.dll</HintPath>
+      </Reference>
+      <Reference Include="Facepunch.Unity, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Facepunch.Unity.dll</HintPath>
+      </Reference>
+      <Reference Include="Facepunch.UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Facepunch.UnityEngine.dll</HintPath>
+      </Reference>
+      <Reference Include="Oxide.Core, Version=2.0.4002.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Oxide.Core.dll</HintPath>
+      </Reference>
+      <Reference Include="Oxide.CSharp, Version=2.0.4046.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Oxide.CSharp.dll</HintPath>
+      </Reference>
+      <Reference Include="Oxide.Ext.Discord, Version=2.1.2.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Oxide.Ext.Discord.dll</HintPath>
+      </Reference>
+      <Reference Include="Oxide.References, Version=2.0.3779.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Oxide.References.dll</HintPath>
+      </Reference>
+      <Reference Include="Oxide.Rust, Version=2.0.5355.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Oxide.Rust.dll</HintPath>
+      </Reference>
+      <Reference Include="Oxide.Unity, Version=2.0.3772.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Oxide.Unity.dll</HintPath>
+      </Reference>
+      <Reference Include="Rust.Data, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Rust.Data.dll</HintPath>
+      </Reference>
+      <Reference Include="Rust.Global, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Rust.Global.dll</HintPath>
+      </Reference>
+      <Reference Include="Rust.Localization, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\Rust.Localization.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\UnityEngine.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+        <HintPath>..\..\References\UnityEngine.CoreModule.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\..\..\README.md">
+        <Link>README.md</Link>
+      </Content>
+    </ItemGroup>
+
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+      <Exec Command="plugin.merge -m -c -p ./merge.yml" />
+    </Target>
+
+</Project>
