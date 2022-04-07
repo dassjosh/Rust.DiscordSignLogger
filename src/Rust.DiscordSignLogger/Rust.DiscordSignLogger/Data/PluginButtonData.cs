@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Oxide.Plugins;
-using Rust.DiscordSignLogger.Configuration;
+using Rust.SignLogger.Configuration;
 
-namespace Rust.DiscordSignLogger.Data
+namespace Rust.SignLogger.Data
 {
     public class PluginButtonData
     {

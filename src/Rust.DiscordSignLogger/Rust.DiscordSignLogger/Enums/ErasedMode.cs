@@ -1,4 +1,4 @@
-namespace Rust.DiscordSignLogger.Enums
+namespace Rust.SignLogger.Enums
 {
     public enum ErasedMode
     {

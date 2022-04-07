@@ -2,9 +2,9 @@ using Oxide.Core.Plugins;
 using Oxide.Ext.Discord.Constants;
 using Oxide.Ext.Discord.Entities.Guilds;
 using Oxide.Ext.Discord.Entities.Interactions;
-using Rust.DiscordSignLogger.Configuration;
+using Rust.SignLogger.Configuration;
 
-namespace Rust.DiscordSignLogger.Plugins
+namespace Rust.SignLogger.Plugins
 {
     //Define:FileOrder=5
     public partial class DiscordSignLogger
@@ -22,9 +22,9 @@ namespace Rust.DiscordSignLogger.Plugins
                 }
             }
 
-            if (_pluginConfig.ActionLog.Channel.IsValid() && guild.Channels.ContainsKey(_pluginConfig.ActionLog.Channel))
+            if (_pluginConfig.ActionLog.ChannelId.IsValid() && guild.Channels.ContainsKey(_pluginConfig.ActionLog.ChannelId))
             {
-                _actionChannel = guild.Channels[_pluginConfig.ActionLog.Channel];
+                _actionChannel = guild.Channels[_pluginConfig.ActionLog.ChannelId];
             }
 
             if (subscribe)

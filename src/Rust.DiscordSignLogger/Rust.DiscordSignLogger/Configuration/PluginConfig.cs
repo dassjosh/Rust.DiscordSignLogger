@@ -3,9 +3,9 @@ using System.ComponentModel;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Oxide.Ext.Discord.Logging;
-using Rust.DiscordSignLogger.Configuration.ActionLog;
+using Rust.SignLogger.Configuration.ActionLog;
 
-namespace Rust.DiscordSignLogger.Configuration
+namespace Rust.SignLogger.Configuration
 {
     public class PluginConfig
     {

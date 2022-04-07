@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Oxide.Ext.Discord.Entities;
+using Rust.SignLogger.Plugins;
 
-namespace Rust.DiscordSignLogger.Configuration
+namespace Rust.SignLogger.Configuration
 {
     public class ImageMessageButtonCommand : BaseDiscordButton
     {
@@ -31,7 +32,7 @@ namespace Rust.DiscordSignLogger.Configuration
         public void SetCommandId()
         {
             CommandId = GetCommandId();
-            CommandCustomId = Plugins.DiscordSignLogger.CommandPrefix + CommandId.ToString();
+            CommandCustomId = $"{DiscordSignLogger.CommandPrefix}{CommandId}";
         }
 
         public int GetCommandId()

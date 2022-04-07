@@ -1,4 +1,4 @@
-namespace Rust.DiscordSignLogger.Configuration.ActionLog
+namespace Rust.SignLogger.Configuration.ActionLog
 {
     public class ActionMessageButtonCommand : BaseDiscordButton
     {

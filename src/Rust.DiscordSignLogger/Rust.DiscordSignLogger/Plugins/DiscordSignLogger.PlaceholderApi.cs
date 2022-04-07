@@ -4,11 +4,11 @@ using Oxide.Core.Libraries.Covalence;
 using Oxide.Core.Plugins;
 using Oxide.Ext.Discord.Entities;
 using Oxide.Plugins;
-using Rust.DiscordSignLogger.Lang;
-using Rust.DiscordSignLogger.Updates;
+using Rust.SignLogger.Lang;
+using Rust.SignLogger.Updates;
 using UnityEngine;
 
-namespace Rust.DiscordSignLogger.Plugins
+namespace Rust.SignLogger.Plugins
 {
     //Define:FileOrder=11
     public partial class DiscordSignLogger
@@ -60,6 +60,11 @@ namespace Rust.DiscordSignLogger.Plugins
             
             RegisterPlaceholder("dsl.entity.name", (player, s) =>
             {
+                if (_log.ItemId != 0)
+                {
+                    return GetItemName(_log.ItemId);
+                }
+                
                 BaseEntity entity = _log.Entity;
                 return entity ? GetEntityName(entity) : "Entity Not Found";
             }, "Displays the entity item name");
@@ -154,24 +159,5 @@ namespace Rust.DiscordSignLogger.Plugins
         }
 
         private bool IsPlaceholderApiLoaded() => PlaceholderAPI != null && PlaceholderAPI.IsLoaded;
-        
-        public string GetEntityName(BaseEntity entity)
-        {
-            if (!entity)
-            {
-                return string.Empty;
-            }
-            
-            if (RustTranslationAPI != null && RustTranslationAPI.IsLoaded)
-            {
-                string name = RustTranslationAPI.Call<string>("GetDeployableTranslation", lang.GetServerLanguage(), entity.ShortPrefabName);
-                if (!string.IsNullOrEmpty(name))
-                {
-                    return name;
-                }
-            }
-
-            return _prefabNameLookup[entity.ShortPrefabName] ?? entity.ShortPrefabName;
-        }
     }
 }

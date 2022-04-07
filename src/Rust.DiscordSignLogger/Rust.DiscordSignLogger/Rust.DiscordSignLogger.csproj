@@ -3,6 +3,7 @@
     <PropertyGroup>
         <TargetFramework>net48</TargetFramework>
         <LangVersion>6</LangVersion>
+        <RootNamespace>Rust.SignLogger</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
@@ -67,6 +68,12 @@
         <Link>README.md</Link>
       </Content>
     </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\..\DiscordSignLogger.cs">
+      <Link>DiscordSignLogger.cs</Link>
+    </Content>
+  </ItemGroup>
 
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
       <Exec Command="plugin.merge -m -c -p ./merge.yml" />

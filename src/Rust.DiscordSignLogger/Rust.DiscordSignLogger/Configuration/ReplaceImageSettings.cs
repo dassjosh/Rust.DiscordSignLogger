@@ -1,8 +1,8 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
-using Rust.DiscordSignLogger.Enums;
+using Rust.SignLogger.Enums;
 
-namespace Rust.DiscordSignLogger.Configuration
+namespace Rust.SignLogger.Configuration
 {
     public class ReplaceImageSettings
     {

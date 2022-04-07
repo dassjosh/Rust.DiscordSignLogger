@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using Rust.DiscordSignLogger.Configuration;
+using Rust.SignLogger.Configuration;
 
-namespace Rust.DiscordSignLogger.Updates
+namespace Rust.SignLogger.Updates
 {
     public class SignageUpdate : BaseImageUpdate
     {

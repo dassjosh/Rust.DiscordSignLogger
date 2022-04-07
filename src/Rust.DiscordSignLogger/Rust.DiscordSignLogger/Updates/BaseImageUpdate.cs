@@ -1,9 +1,10 @@
 using System.Collections.Generic;
 using Oxide.Core.Libraries.Covalence;
-using Rust.DiscordSignLogger.Configuration;
-using Rust.DiscordSignLogger.Interfaces;
+using Rust.SignLogger.Configuration;
+using Rust.SignLogger.Interfaces;
+using Rust.SignLogger.Plugins;
 
-namespace Rust.DiscordSignLogger.Updates
+namespace Rust.SignLogger.Updates
 {
     public abstract class BaseImageUpdate : ILogEvent
     {
@@ -13,6 +14,7 @@ namespace Rust.DiscordSignLogger.Updates
         public BaseEntity Entity { get; }
         public List<SignMessage> Messages { get; }
         public bool IgnoreMessage { get; }
+        public int ItemId { get; protected set; }
         
         public uint TextureIndex { get; protected set; }
         public abstract bool SupportsTextureIndex { get; }
@@ -26,7 +28,7 @@ namespace Rust.DiscordSignLogger.Updates
             Messages = messages;
             IgnoreMessage = ignoreMessage;
         }
-            
+
         public abstract byte[] GetImage();
     }
 }

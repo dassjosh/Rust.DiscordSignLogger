@@ -11,12 +11,12 @@ using Oxide.Ext.Discord.Entities.Interactions;
 using Oxide.Ext.Discord.Entities.Messages;
 using Oxide.Ext.Discord.Entities.Messages.AllowedMentions;
 using Oxide.Plugins;
-using Rust.DiscordSignLogger.Configuration;
-using Rust.DiscordSignLogger.Data;
-using Rust.DiscordSignLogger.Interfaces;
-using Rust.DiscordSignLogger.Updates;
+using Rust.SignLogger.Configuration;
+using Rust.SignLogger.Data;
+using Rust.SignLogger.Interfaces;
+using Rust.SignLogger.Updates;
 
-namespace Rust.DiscordSignLogger.Plugins
+namespace Rust.SignLogger.Plugins
 {
     //Define:FileOrder=2
     public partial class DiscordSignLogger

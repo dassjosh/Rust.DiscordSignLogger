@@ -3,19 +3,19 @@ using Newtonsoft.Json;
 using Oxide.Ext.Discord.Entities;
 using Oxide.Ext.Discord.Entities.Interactions.MessageComponents;
 
-namespace Rust.DiscordSignLogger.Configuration.ActionLog
+namespace Rust.SignLogger.Configuration.ActionLog
 {
     public class ActionLogConfig
     {
         [JsonProperty(PropertyName = "Channel ID")]
-        public Snowflake Channel { get; set; }
+        public Snowflake ChannelId { get; set; }
         
         [JsonProperty(PropertyName = "Buttons")]
         public List<ActionMessageButtonCommand> Buttons { get; set; }
 
         public ActionLogConfig(ActionLogConfig settings)
         {
-            Channel = settings?.Channel ?? default(Snowflake);
+            ChannelId = settings?.ChannelId ?? default(Snowflake);
             Buttons = settings?.Buttons ?? new List<ActionMessageButtonCommand>
             {
                 new ActionMessageButtonCommand

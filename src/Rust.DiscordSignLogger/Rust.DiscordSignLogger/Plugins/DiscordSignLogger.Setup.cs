@@ -3,11 +3,11 @@ using Newtonsoft.Json;
 using Oxide.Core;
 using Oxide.Ext.Discord;
 using Oxide.Ext.Discord.Entities.Gatway;
-using Rust.DiscordSignLogger.Configuration;
-using Rust.DiscordSignLogger.Configuration.ActionLog;
-using Rust.DiscordSignLogger.Data;
+using Rust.SignLogger.Configuration;
+using Rust.SignLogger.Configuration.ActionLog;
+using Rust.SignLogger.Data;
 
-namespace Rust.DiscordSignLogger.Plugins
+namespace Rust.SignLogger.Plugins
 {
     //Define:FileOrder=3
     public partial class DiscordSignLogger

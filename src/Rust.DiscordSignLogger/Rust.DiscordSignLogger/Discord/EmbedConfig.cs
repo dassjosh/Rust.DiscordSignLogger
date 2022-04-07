@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace Rust.DiscordSignLogger.Discord
+namespace Rust.SignLogger.Discord
 {
     public class EmbedConfig
     {

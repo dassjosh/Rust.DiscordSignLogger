@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace Rust.DiscordSignLogger.Configuration
+namespace Rust.SignLogger.Configuration
 {
     public class FireworkSettings
     {

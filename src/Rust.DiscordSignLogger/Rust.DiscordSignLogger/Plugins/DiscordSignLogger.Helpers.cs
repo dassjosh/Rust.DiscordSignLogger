@@ -1,9 +1,9 @@
 using System;
 using Oxide.Core;
 using Oxide.Core.Libraries.Covalence;
-using Rust.DiscordSignLogger.Lang;
+using Rust.SignLogger.Lang;
 
-namespace Rust.DiscordSignLogger.Plugins
+namespace Rust.SignLogger.Plugins
 {
     //Define:FileOrder=9
     public partial class DiscordSignLogger

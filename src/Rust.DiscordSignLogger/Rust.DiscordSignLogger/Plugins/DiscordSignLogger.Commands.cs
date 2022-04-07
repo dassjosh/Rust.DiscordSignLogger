@@ -1,8 +1,8 @@
 using Oxide.Plugins;
-using Rust.DiscordSignLogger.Configuration;
-using Rust.DiscordSignLogger.Enums;
+using Rust.SignLogger.Configuration;
+using Rust.SignLogger.Enums;
 
-namespace Rust.DiscordSignLogger.Plugins
+namespace Rust.SignLogger.Plugins
 {
     //Define:FileOrder=9
     public partial class DiscordSignLogger
@@ -39,10 +39,21 @@ namespace Rust.DiscordSignLogger.Plugins
                 HandleReplaceImage(signage, index);
                 return;
             }
-            
-            PatternFirework firework = entity as PatternFirework;
-            if (firework != null)
+
+            if (entity is PaintedItemStorageEntity)
             {
+                PaintedItemStorageEntity item = (PaintedItemStorageEntity)entity;
+                if (item._currentImageCrc != 0)
+                {
+                    FileStorage.server.RemoveExact(item._currentImageCrc, FileStorage.Type.png, item.net.ID, 0);
+                    item._currentImageCrc = 0;
+                    item.SendNetworkUpdate();
+                }
+            }
+            
+            if (entity is PatternFirework)
+            {
+                PatternFirework firework = (PatternFirework)entity;
                 firework.Design?.Dispose();
                 firework.Design = null;
                 firework.SendNetworkUpdateImmediate();

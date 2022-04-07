@@ -1,22 +1,25 @@
 using System;
 using Newtonsoft.Json;
 using Oxide.Core.Libraries.Covalence;
-using Rust.DiscordSignLogger.Interfaces;
-using Rust.DiscordSignLogger.Updates;
+using Rust.SignLogger.Interfaces;
+using Rust.SignLogger.Plugins;
+using Rust.SignLogger.Updates;
 
-namespace Rust.DiscordSignLogger.Data
+namespace Rust.SignLogger.Data
 {
     public class SignUpdateLog : ILogEvent
     {
         public ulong PlayerId { get; set; }
         public uint EntityId { get; set; }
+        public int ItemId { get; set; }
         public uint TextureIndex { get; set; }
+
         public DateTime LogDate { get; set; }
 
         [JsonIgnore]
         private IPlayer _player;
         [JsonIgnore]
-        public IPlayer Player => _player ?? (_player = Plugins.DiscordSignLogger.Instance.FindPlayerById(PlayerId.ToString()));
+        public IPlayer Player => _player ?? (_player = DiscordSignLogger.Instance.FindPlayerById(PlayerId.ToString()));
 
         [JsonIgnore]
         private BaseEntity _entity;
@@ -57,6 +60,11 @@ namespace Rust.DiscordSignLogger.Data
             if (update.SupportsTextureIndex)
             {
                 TextureIndex = update.TextureIndex;
+            }
+
+            if (update is PaintedItemUpdate)
+            {
+                ItemId = ((PaintedItemUpdate)update).ItemId;
             }
         }
     }

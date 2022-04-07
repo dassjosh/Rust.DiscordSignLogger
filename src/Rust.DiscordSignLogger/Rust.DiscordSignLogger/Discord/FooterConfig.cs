@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace Rust.DiscordSignLogger.Discord
+namespace Rust.SignLogger.Discord
 {
     public class FooterConfig
     {

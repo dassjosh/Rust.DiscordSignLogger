@@ -1,7 +1,7 @@
 using System;
-using Rust.DiscordSignLogger.Configuration;
+using Rust.SignLogger.Configuration;
 
-namespace Rust.DiscordSignLogger.Data
+namespace Rust.SignLogger.Data
 {
     public class ButtonData
     {

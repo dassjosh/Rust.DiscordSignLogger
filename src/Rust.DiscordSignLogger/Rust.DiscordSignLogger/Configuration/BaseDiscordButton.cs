@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Oxide.Ext.Discord.Entities.Interactions.MessageComponents;
 
-namespace Rust.DiscordSignLogger.Configuration
+namespace Rust.SignLogger.Configuration
 {
     public class BaseDiscordButton
     {

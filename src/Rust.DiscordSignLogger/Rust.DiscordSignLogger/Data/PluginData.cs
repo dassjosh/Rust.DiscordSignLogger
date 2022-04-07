@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Oxide.Ext.Discord.Entities;
 using Oxide.Plugins;
 
-namespace Rust.DiscordSignLogger.Data
+namespace Rust.SignLogger.Data
 {
     public class PluginData
     {

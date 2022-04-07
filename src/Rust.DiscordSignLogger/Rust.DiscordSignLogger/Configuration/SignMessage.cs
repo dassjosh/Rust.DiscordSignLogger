@@ -3,9 +3,9 @@ using Newtonsoft.Json;
 using Oxide.Ext.Discord.Entities;
 using Oxide.Ext.Discord.Entities.Channels;
 using Oxide.Ext.Discord.Entities.Interactions.MessageComponents;
-using Rust.DiscordSignLogger.Discord;
+using Rust.SignLogger.Discord;
 
-namespace Rust.DiscordSignLogger.Configuration
+namespace Rust.SignLogger.Configuration
 {
     public class SignMessage
     {

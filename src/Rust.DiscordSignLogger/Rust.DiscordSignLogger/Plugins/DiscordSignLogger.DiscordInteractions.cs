@@ -4,12 +4,12 @@ using Oxide.Ext.Discord.Entities;
 using Oxide.Ext.Discord.Entities.Interactions;
 using Oxide.Ext.Discord.Entities.Interactions.MessageComponents;
 using Oxide.Ext.Discord.Entities.Messages;
-using Rust.DiscordSignLogger.Configuration;
-using Rust.DiscordSignLogger.Configuration.ActionLog;
-using Rust.DiscordSignLogger.Data;
-using Rust.DiscordSignLogger.Lang;
+using Rust.SignLogger.Configuration;
+using Rust.SignLogger.Configuration.ActionLog;
+using Rust.SignLogger.Data;
+using Rust.SignLogger.Lang;
 
-namespace Rust.DiscordSignLogger.Plugins
+namespace Rust.SignLogger.Plugins
 {
     //Define:FileOrder=6
     public partial class DiscordSignLogger

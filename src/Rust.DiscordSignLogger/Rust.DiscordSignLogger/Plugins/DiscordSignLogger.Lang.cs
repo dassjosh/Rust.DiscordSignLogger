@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using Rust.DiscordSignLogger.Lang;
+using Rust.SignLogger.Lang;
 
-namespace Rust.DiscordSignLogger.Plugins
+namespace Rust.SignLogger.Plugins
 {
     //Define:FileOrder=10
     public partial class DiscordSignLogger

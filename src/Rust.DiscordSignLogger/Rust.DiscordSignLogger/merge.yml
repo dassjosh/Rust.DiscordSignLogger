@@ -24,7 +24,7 @@ Merge Settings:
   Ignore Files: []
   # Namespaces to ignore when processing output file
   Ignore Namespaces:
-  - Rust.DiscordSignLogger
+  - Rust.SignLogger
   Code Style:
   # Character to use for code indents
     Indent Character: ' '

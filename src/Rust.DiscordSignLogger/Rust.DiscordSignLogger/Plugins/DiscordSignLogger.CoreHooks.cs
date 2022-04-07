@@ -1,8 +1,8 @@
 using System;
-using Rust.DiscordSignLogger.Lang;
-using Rust.DiscordSignLogger.Updates;
+using Rust.SignLogger.Lang;
+using Rust.SignLogger.Updates;
 
-namespace Rust.DiscordSignLogger.Plugins
+namespace Rust.SignLogger.Plugins
 {
     //Define:FileOrder=4
     public partial class DiscordSignLogger
@@ -32,6 +32,17 @@ namespace Rust.DiscordSignLogger.Plugins
                 return;
             }
             
+            SendDiscordMessage(update);
+        }
+
+        private void OnItemPainted(PaintedItemStorageEntity entity, Item item, BasePlayer player, byte[] image)
+        {
+            if (entity._currentImageCrc == 0)
+            {
+                return;
+            }
+            
+            PaintedItemUpdate update = new PaintedItemUpdate(player, entity, item, image, _pluginConfig.SignMessages, false);
             SendDiscordMessage(update);
         }
 

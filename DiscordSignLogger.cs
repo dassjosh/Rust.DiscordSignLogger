@@ -33,10 +33,10 @@ using Color = System.Drawing.Color;
 using Graphics = System.Drawing.Graphics;
 using Star = ProtoBuf.PatternFirework.Star;
 
-//DiscordSignLogger created with PluginMerge v(1.0.0.0) by MJSU
+//DiscordSignLogger created with PluginMerge v(1.0.4.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
 namespace Oxide.Plugins
 {
-    [Info("Discord Sign Logger", "MJSU", "1.0.2")]
+    [Info("Discord Sign Logger", "MJSU", "1.0.3")]
     [Description("Logs Sign / Firework Changes To Discord")]
     public partial class DiscordSignLogger : RustPlugin
     {
@@ -241,6 +241,17 @@ namespace Oxide.Plugins
             SendDiscordMessage(update);
         }
         
+        private void OnItemPainted(PaintedItemStorageEntity entity, Item item, BasePlayer player, byte[] image)
+        {
+            if (entity._currentImageCrc == 0)
+            {
+                return;
+            }
+            
+            PaintedItemUpdate update = new PaintedItemUpdate(player, entity, item, image, _pluginConfig.SignMessages, false);
+            SendDiscordMessage(update);
+        }
+        
         private void OnFireworkDesignChanged(PatternFirework firework, ProtoBuf.PatternFirework.Design design, BasePlayer player)
         {
             if (design?.stars == null || design.stars.Count == 0)
@@ -337,9 +348,9 @@ namespace Oxide.Plugins
                 }
             }
             
-            if (_pluginConfig.ActionLog.Channel.IsValid() && guild.Channels.ContainsKey(_pluginConfig.ActionLog.Channel))
+            if (_pluginConfig.ActionLog.ChannelId.IsValid() && guild.Channels.ContainsKey(_pluginConfig.ActionLog.ChannelId))
             {
-                _actionChannel = guild.Channels[_pluginConfig.ActionLog.Channel];
+                _actionChannel = guild.Channels[_pluginConfig.ActionLog.ChannelId];
             }
             
             if (subscribe)
@@ -765,9 +776,20 @@ namespace Oxide.Plugins
                 return;
             }
             
-            PatternFirework firework = entity as PatternFirework;
-            if (firework != null)
+            if (entity is PaintedItemStorageEntity)
             {
+                PaintedItemStorageEntity item = (PaintedItemStorageEntity)entity;
+                if (item._currentImageCrc != 0)
+                {
+                    FileStorage.server.RemoveExact(item._currentImageCrc, FileStorage.Type.png, item.net.ID, 0);
+                    item._currentImageCrc = 0;
+                    item.SendNetworkUpdate();
+                }
+            }
+            
+            if (entity is PatternFirework)
+            {
+                PatternFirework firework = (PatternFirework)entity;
                 firework.Design?.Dispose();
                 firework.Design = null;
                 firework.SendNetworkUpdateImmediate();
@@ -1008,6 +1030,11 @@ namespace Oxide.Plugins
             
             RegisterPlaceholder("dsl.entity.name", (player, s) =>
             {
+                if (_log.ItemId != 0)
+                {
+                    return GetItemName(_log.ItemId);
+                }
+                
                 BaseEntity entity = _log.Entity;
                 return entity ? GetEntityName(entity) : "Entity Not Found";
             }, "Displays the entity item name");
@@ -1102,7 +1129,9 @@ namespace Oxide.Plugins
         }
         
         private bool IsPlaceholderApiLoaded() => PlaceholderAPI != null && PlaceholderAPI.IsLoaded;
-        
+        #endregion
+
+        #region Plugins\DiscordSignLogger.RustTranslationApi.cs
         public string GetEntityName(BaseEntity entity)
         {
             if (!entity)
@@ -1120,6 +1149,25 @@ namespace Oxide.Plugins
             }
             
             return _prefabNameLookup[entity.ShortPrefabName] ?? entity.ShortPrefabName;
+        }
+        
+        public string GetItemName(int itemId)
+        {
+            if (itemId == 0)
+            {
+                return string.Empty;
+            }
+            
+            if (RustTranslationAPI != null && RustTranslationAPI.IsLoaded)
+            {
+                string name = RustTranslationAPI.Call<string>("GetItemTranslationByID", lang.GetServerLanguage(), itemId);
+                if (!string.IsNullOrEmpty(name))
+                {
+                    return name;
+                }
+            }
+            
+            return ItemManager.FindItemDefinition(itemId).displayName.translated;
         }
         #endregion
 
@@ -1182,7 +1230,7 @@ namespace Oxide.Plugins
             public void SetCommandId()
             {
                 CommandId = GetCommandId();
-                CommandCustomId = Plugins.DiscordSignLogger.CommandPrefix + CommandId.ToString();
+                CommandCustomId = $"{DiscordSignLogger.CommandPrefix}{CommandId}";
             }
             
             public int GetCommandId()
@@ -1508,13 +1556,15 @@ namespace Oxide.Plugins
         {
             public ulong PlayerId { get; set; }
             public uint EntityId { get; set; }
+            public int ItemId { get; set; }
             public uint TextureIndex { get; set; }
+            
             public DateTime LogDate { get; set; }
             
             [JsonIgnore]
             private IPlayer _player;
             [JsonIgnore]
-            public IPlayer Player => _player ?? (_player = Plugins.DiscordSignLogger.Instance.FindPlayerById(PlayerId.ToString()));
+            public IPlayer Player => _player ?? (_player = DiscordSignLogger.Instance.FindPlayerById(PlayerId.ToString()));
             
             [JsonIgnore]
             private BaseEntity _entity;
@@ -1555,6 +1605,11 @@ namespace Oxide.Plugins
                 if (update.SupportsTextureIndex)
                 {
                     TextureIndex = update.TextureIndex;
+                }
+                
+                if (update is PaintedItemUpdate)
+                {
+                    ItemId = ((PaintedItemUpdate)update).ItemId;
                 }
             }
         }
@@ -1703,6 +1758,7 @@ namespace Oxide.Plugins
         {
             IPlayer Player { get; }
             BaseEntity Entity { get; }
+            int ItemId { get; }
             uint TextureIndex { get; }
         }
         #endregion
@@ -1746,6 +1802,7 @@ namespace Oxide.Plugins
             public BaseEntity Entity { get; }
             public List<SignMessage> Messages { get; }
             public bool IgnoreMessage { get; }
+            public int ItemId { get; protected set; }
             
             public uint TextureIndex { get; protected set; }
             public abstract bool SupportsTextureIndex { get; }
@@ -1780,16 +1837,16 @@ namespace Oxide.Plugins
                 PatternFirework firework = Firework;
                 List<Star> stars = firework.Design.stars;
                 
-                using (Bitmap image = new Bitmap(Plugins.DiscordSignLogger.Instance.FireworkImageSize, Plugins.DiscordSignLogger.Instance.FireworkImageSize))
+                using (Bitmap image = new Bitmap(DiscordSignLogger.Instance.FireworkImageSize, DiscordSignLogger.Instance.FireworkImageSize))
                 {
                     using (Graphics g = Graphics.FromImage(image))
                     {
                         for (int index = 0; index < stars.Count; index++)
                         {
                             Star star = stars[index];
-                            int x = (int)((star.position.x + 1) * Plugins.DiscordSignLogger.Instance.FireworkHalfImageSize);
-                            int y = (int)((-star.position.y + 1) * Plugins.DiscordSignLogger.Instance.FireworkHalfImageSize);
-                            g.FillEllipse(GetBrush(star.color), x, y, Plugins.DiscordSignLogger.Instance.FireworkCircleSize, Plugins.DiscordSignLogger.Instance.FireworkCircleSize);
+                            int x = (int)((star.position.x + 1) * DiscordSignLogger.Instance.FireworkHalfImageSize);
+                            int y = (int)((-star.position.y + 1) * DiscordSignLogger.Instance.FireworkHalfImageSize);
+                            g.FillEllipse(GetBrush(star.color), x, y, DiscordSignLogger.Instance.FireworkCircleSize, DiscordSignLogger.Instance.FireworkCircleSize);
                         }
                         
                         return GetImageBytes(image);
@@ -1799,11 +1856,11 @@ namespace Oxide.Plugins
             
             private Brush GetBrush(UnityEngine.Color color)
             {
-                Brush brush = Plugins.DiscordSignLogger.Instance.FireworkBrushes[color];
+                Brush brush = DiscordSignLogger.Instance.FireworkBrushes[color];
                 if (brush == null)
                 {
                     brush = new SolidBrush(FromUnityColor(color));
-                    Plugins.DiscordSignLogger.Instance.FireworkBrushes[color] = brush;
+                    DiscordSignLogger.Instance.FireworkBrushes[color] = brush;
                 }
                 
                 return brush;
@@ -1835,6 +1892,25 @@ namespace Oxide.Plugins
         }
         #endregion
 
+        #region Updates\PaintedItemUpdate.cs
+        public class PaintedItemUpdate : BaseImageUpdate
+        {
+            private readonly byte[] _image;
+            
+            public PaintedItemUpdate(BasePlayer player, PaintedItemStorageEntity entity, Item item, byte[] image, List<SignMessage> messages, bool ignoreMessage) : base(player, entity, messages, ignoreMessage)
+            {
+                _image = image;
+                ItemId = item.info.itemid;
+            }
+            
+            public override bool SupportsTextureIndex => false;
+            public override byte[] GetImage()
+            {
+                return _image;
+            }
+        }
+        #endregion
+
         #region Updates\SignageUpdate.cs
         public class SignageUpdate : BaseImageUpdate
         {
@@ -1862,14 +1938,14 @@ namespace Oxide.Plugins
         public class ActionLogConfig
         {
             [JsonProperty(PropertyName = "Channel ID")]
-            public Snowflake Channel { get; set; }
+            public Snowflake ChannelId { get; set; }
             
             [JsonProperty(PropertyName = "Buttons")]
             public List<ActionMessageButtonCommand> Buttons { get; set; }
             
             public ActionLogConfig(ActionLogConfig settings)
             {
-                Channel = settings?.Channel ?? default(Snowflake);
+                ChannelId = settings?.ChannelId ?? default(Snowflake);
                 Buttons = settings?.Buttons ?? new List<ActionMessageButtonCommand>
                 {
                     new ActionMessageButtonCommand

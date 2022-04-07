@@ -1,4 +1,4 @@
-namespace Rust.DiscordSignLogger.Lang
+namespace Rust.SignLogger.Lang
 {
     public static class LangKeys
     {
