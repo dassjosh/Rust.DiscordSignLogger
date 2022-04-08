@@ -35,16 +35,16 @@ namespace Rust.SignLogger.Plugins
             SendDiscordMessage(update);
         }
 
-        private void OnItemPainted(PaintedItemStorageEntity entity, Item item, BasePlayer player, byte[] image)
-        {
-            if (entity._currentImageCrc == 0)
-            {
-                return;
-            }
-            
-            PaintedItemUpdate update = new PaintedItemUpdate(player, entity, item, image, _pluginConfig.SignMessages, false);
-            SendDiscordMessage(update);
-        }
+        // private void OnItemPainted(PaintedItemStorageEntity entity, Item item, BasePlayer player, byte[] image)
+        // {
+        //     if (entity._currentImageCrc == 0)
+        //     {
+        //         return;
+        //     }
+        //     
+        //     PaintedItemUpdate update = new PaintedItemUpdate(player, entity, item, image, _pluginConfig.SignMessages, false);
+        //     SendDiscordMessage(update);
+        // }
 
         private void OnFireworkDesignChanged(PatternFirework firework, ProtoBuf.PatternFirework.Design design, BasePlayer player)
         {

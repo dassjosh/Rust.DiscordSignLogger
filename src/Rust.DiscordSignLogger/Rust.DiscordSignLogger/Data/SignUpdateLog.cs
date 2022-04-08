@@ -62,10 +62,10 @@ namespace Rust.SignLogger.Data
                 TextureIndex = update.TextureIndex;
             }
 
-            if (update is PaintedItemUpdate)
-            {
-                ItemId = ((PaintedItemUpdate)update).ItemId;
-            }
+            // if (update is PaintedItemUpdate)
+            // {
+            //     ItemId = ((PaintedItemUpdate)update).ItemId;
+            // }
         }
     }
 }

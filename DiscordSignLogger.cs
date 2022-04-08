@@ -36,7 +36,7 @@ using Star = ProtoBuf.PatternFirework.Star;
 //DiscordSignLogger created with PluginMerge v(1.0.4.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
 namespace Oxide.Plugins
 {
-    [Info("Discord Sign Logger", "MJSU", "1.0.3")]
+    [Info("Discord Sign Logger", "MJSU", "1.0.4")]
     [Description("Logs Sign / Firework Changes To Discord")]
     public partial class DiscordSignLogger : RustPlugin
     {
@@ -241,16 +241,16 @@ namespace Oxide.Plugins
             SendDiscordMessage(update);
         }
         
-        private void OnItemPainted(PaintedItemStorageEntity entity, Item item, BasePlayer player, byte[] image)
-        {
-            if (entity._currentImageCrc == 0)
-            {
-                return;
-            }
-            
-            PaintedItemUpdate update = new PaintedItemUpdate(player, entity, item, image, _pluginConfig.SignMessages, false);
-            SendDiscordMessage(update);
-        }
+        // private void OnItemPainted(PaintedItemStorageEntity entity, Item item, BasePlayer player, byte[] image)
+        // {
+            //     if (entity._currentImageCrc == 0)
+            //     {
+                //         return;
+            //     }
+            //
+            //     PaintedItemUpdate update = new PaintedItemUpdate(player, entity, item, image, _pluginConfig.SignMessages, false);
+            //     SendDiscordMessage(update);
+        // }
         
         private void OnFireworkDesignChanged(PatternFirework firework, ProtoBuf.PatternFirework.Design design, BasePlayer player)
         {
@@ -776,16 +776,16 @@ namespace Oxide.Plugins
                 return;
             }
             
-            if (entity is PaintedItemStorageEntity)
-            {
-                PaintedItemStorageEntity item = (PaintedItemStorageEntity)entity;
-                if (item._currentImageCrc != 0)
-                {
-                    FileStorage.server.RemoveExact(item._currentImageCrc, FileStorage.Type.png, item.net.ID, 0);
-                    item._currentImageCrc = 0;
-                    item.SendNetworkUpdate();
-                }
-            }
+            // if (entity is PaintedItemStorageEntity)
+            // {
+                //     PaintedItemStorageEntity item = (PaintedItemStorageEntity)entity;
+                //     if (item._currentImageCrc != 0)
+                //     {
+                    //         FileStorage.server.RemoveExact(item._currentImageCrc, FileStorage.Type.png, item.net.ID, 0);
+                    //         item._currentImageCrc = 0;
+                    //         item.SendNetworkUpdate();
+                //     }
+            // }
             
             if (entity is PatternFirework)
             {
@@ -1607,10 +1607,10 @@ namespace Oxide.Plugins
                     TextureIndex = update.TextureIndex;
                 }
                 
-                if (update is PaintedItemUpdate)
-                {
-                    ItemId = ((PaintedItemUpdate)update).ItemId;
-                }
+                // if (update is PaintedItemUpdate)
+                // {
+                    //     ItemId = ((PaintedItemUpdate)update).ItemId;
+                // }
             }
         }
         #endregion
@@ -1888,25 +1888,6 @@ namespace Oxide.Plugins
                 byte[] bytes = stream.ToArray();
                 Pool.FreeMemoryStream(ref stream);
                 return bytes;
-            }
-        }
-        #endregion
-
-        #region Updates\PaintedItemUpdate.cs
-        public class PaintedItemUpdate : BaseImageUpdate
-        {
-            private readonly byte[] _image;
-            
-            public PaintedItemUpdate(BasePlayer player, PaintedItemStorageEntity entity, Item item, byte[] image, List<SignMessage> messages, bool ignoreMessage) : base(player, entity, messages, ignoreMessage)
-            {
-                _image = image;
-                ItemId = item.info.itemid;
-            }
-            
-            public override bool SupportsTextureIndex => false;
-            public override byte[] GetImage()
-            {
-                return _image;
             }
         }
         #endregion

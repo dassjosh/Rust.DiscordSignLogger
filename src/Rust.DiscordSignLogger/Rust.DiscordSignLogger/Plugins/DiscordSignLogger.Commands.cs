@@ -40,16 +40,16 @@ namespace Rust.SignLogger.Plugins
                 return;
             }
 
-            if (entity is PaintedItemStorageEntity)
-            {
-                PaintedItemStorageEntity item = (PaintedItemStorageEntity)entity;
-                if (item._currentImageCrc != 0)
-                {
-                    FileStorage.server.RemoveExact(item._currentImageCrc, FileStorage.Type.png, item.net.ID, 0);
-                    item._currentImageCrc = 0;
-                    item.SendNetworkUpdate();
-                }
-            }
+            // if (entity is PaintedItemStorageEntity)
+            // {
+            //     PaintedItemStorageEntity item = (PaintedItemStorageEntity)entity;
+            //     if (item._currentImageCrc != 0)
+            //     {
+            //         FileStorage.server.RemoveExact(item._currentImageCrc, FileStorage.Type.png, item.net.ID, 0);
+            //         item._currentImageCrc = 0;
+            //         item.SendNetworkUpdate();
+            //     }
+            // }
             
             if (entity is PatternFirework)
             {
