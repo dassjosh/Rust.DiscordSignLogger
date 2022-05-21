@@ -36,7 +36,7 @@ using Star = ProtoBuf.PatternFirework.Star;
 //DiscordSignLogger created with PluginMerge v(1.0.4.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
 namespace Oxide.Plugins
 {
-    [Info("Discord Sign Logger", "MJSU", "1.0.5")]
+    [Info("Discord Sign Logger", "MJSU", "1.0.6")]
     [Description("Logs Sign / Firework Changes To Discord")]
     public partial class DiscordSignLogger : RustPlugin
     {
@@ -1183,6 +1183,19 @@ namespace Oxide.Plugins
             
             [JsonProperty(PropertyName = "Commands")]
             public List<string> Commands { get; set; }
+            
+            [JsonConstructor]
+            public BaseDiscordButton()
+            {
+                
+            }
+            
+            public BaseDiscordButton(BaseDiscordButton settings)
+            {
+                DisplayName = settings?.DisplayName ?? "Button Display Name";
+                Style = settings?.Style ?? ButtonStyle.Primary;
+                Commands = settings?.Commands ?? new List<string>();
+            }
         }
         #endregion
 
@@ -1226,6 +1239,21 @@ namespace Oxide.Plugins
             
             [JsonIgnore]
             public string CommandCustomId { get; private set; }
+            
+            [JsonConstructor]
+            public ImageMessageButtonCommand()
+            {
+                
+            }
+            
+            public ImageMessageButtonCommand(ImageMessageButtonCommand settings) : base(settings)
+            {
+                PlayerMessage = settings?.PlayerMessage ?? "Player Message";
+                ServerMessage = settings?.ServerMessage ?? "Server Message";
+                RequirePermissions = settings?.RequirePermissions ?? true;
+                AllowedRoles = settings?.AllowedRoles ?? new List<Snowflake>();
+                AllowedGroups = settings?.AllowedGroups ?? new List<string>();
+            }
             
             public void SetCommandId()
             {
@@ -1384,8 +1412,8 @@ namespace Oxide.Plugins
                     {
                         DisplayName = "Sign Block (24 Hours)",
                         Style = ButtonStyle.Primary,
-                        Commands = new List<string> { "dsl.signblock {player.id} 1440.0" },
-                        PlayerMessage = "An admin erased your sign for being inappropriate",
+                        Commands = new List<string> { "dsl.signblock {player.id} 86400" },
+                        PlayerMessage = "You have been banned from updating signs for 24 hours.",
                         ServerMessage = string.Empty,
                         RequirePermissions = true,
                         AllowedRoles = new List<Snowflake>(),
@@ -1425,6 +1453,12 @@ namespace Oxide.Plugins
                         AllowedGroups = new List<string>()
                     }
                 };
+                
+                for (int index = 0; index < Commands.Count; index++)
+                {
+                    Commands[index] = new ImageMessageButtonCommand(Commands[index]);
+                }
+                
                 MessageConfig = new MessageConfig(settings?.MessageConfig);
             }
         }
@@ -1955,6 +1989,11 @@ namespace Oxide.Plugins
                         Commands = new List<string> { "discord://-/channels/{dsl.action.guild.id}/{dsl.action.channel.id}/{dsl.action.message.id}" }
                     }
                 };
+                
+                for (int index = 0; index < Buttons.Count; index++)
+                {
+                    Buttons[index] = new ActionMessageButtonCommand(Buttons[index]);
+                }
             }
         }
         #endregion
@@ -1962,7 +2001,16 @@ namespace Oxide.Plugins
         #region Configuration\ActionLog\ActionMessageButtonCommand.cs
         public class ActionMessageButtonCommand : BaseDiscordButton
         {
+            [JsonConstructor]
+            public ActionMessageButtonCommand()
+            {
+                
+            }
             
+            public ActionMessageButtonCommand(ActionMessageButtonCommand settings) : base(settings)
+            {
+                
+            }
         }
         #endregion
 
