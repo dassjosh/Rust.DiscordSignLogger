@@ -16,5 +16,18 @@ namespace Rust.SignLogger.Configuration
         
         [JsonProperty(PropertyName = "Commands")]
         public List<string> Commands { get; set; }
+        
+        [JsonConstructor]
+        public BaseDiscordButton()
+        {
+            
+        }
+
+        public BaseDiscordButton(BaseDiscordButton settings)
+        {
+            DisplayName = settings?.DisplayName ?? "Button Display Name";
+            Style = settings?.Style ?? ButtonStyle.Primary;
+            Commands = settings?.Commands ?? new List<string>();
+        }
     }
 }

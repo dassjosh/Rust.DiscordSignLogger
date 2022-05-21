@@ -29,6 +29,21 @@ namespace Rust.SignLogger.Configuration
         [JsonIgnore]
         public string CommandCustomId { get; private set; }
 
+        [JsonConstructor]
+        public ImageMessageButtonCommand()
+        {
+            
+        }
+        
+        public ImageMessageButtonCommand(ImageMessageButtonCommand settings) : base(settings)
+        {
+            PlayerMessage = settings?.PlayerMessage ?? "Player Message";
+            ServerMessage = settings?.ServerMessage ?? "Server Message";
+            RequirePermissions = settings?.RequirePermissions ?? true;
+            AllowedRoles = settings?.AllowedRoles ?? new List<Snowflake>();
+            AllowedGroups = settings?.AllowedGroups ?? new List<string>();
+        }
+
         public void SetCommandId()
         {
             CommandId = GetCommandId();

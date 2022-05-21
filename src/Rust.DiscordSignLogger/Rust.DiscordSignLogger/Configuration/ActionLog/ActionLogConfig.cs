@@ -25,6 +25,11 @@ namespace Rust.SignLogger.Configuration.ActionLog
                     Commands = new List<string> { "discord://-/channels/{dsl.action.guild.id}/{dsl.action.channel.id}/{dsl.action.message.id}" }
                 }
             };
+
+            for (int index = 0; index < Buttons.Count; index++)
+            {
+                Buttons[index] = new ActionMessageButtonCommand(Buttons[index]);
+            }
         }
     }
 }

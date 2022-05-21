@@ -64,7 +64,7 @@ namespace Rust.SignLogger.Configuration
                     DisplayName = "Sign Block (24 Hours)",
                     Style = ButtonStyle.Primary,
                     Commands = new List<string> { "dsl.signblock {player.id} 1440.0" },
-                    PlayerMessage = "An admin erased your sign for being inappropriate",
+                    PlayerMessage = "You have been banned from updating signs for 24 hours.",
                     ServerMessage = string.Empty,
                     RequirePermissions = true,
                     AllowedRoles = new List<Snowflake>(),
@@ -104,6 +104,12 @@ namespace Rust.SignLogger.Configuration
                     AllowedGroups = new List<string>()
                 }
             };
+            
+            for (int index = 0; index < Commands.Count; index++)
+            {
+                Commands[index] = new ImageMessageButtonCommand(Commands[index]);
+            }
+
             MessageConfig = new MessageConfig(settings?.MessageConfig);
         }
     }
