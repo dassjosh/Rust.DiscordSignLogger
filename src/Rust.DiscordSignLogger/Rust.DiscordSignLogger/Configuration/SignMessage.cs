@@ -63,7 +63,7 @@ namespace Rust.SignLogger.Configuration
                 {
                     DisplayName = "Sign Block (24 Hours)",
                     Style = ButtonStyle.Primary,
-                    Commands = new List<string> { "dsl.signblock {player.id} 1440.0" },
+                    Commands = new List<string> { "dsl.signblock {player.id} 86400" },
                     PlayerMessage = "You have been banned from updating signs for 24 hours.",
                     ServerMessage = string.Empty,
                     RequirePermissions = true,
