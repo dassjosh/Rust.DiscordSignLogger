@@ -36,7 +36,7 @@ using Star = ProtoBuf.PatternFirework.Star;
 //DiscordSignLogger created with PluginMerge v(1.0.4.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
 namespace Oxide.Plugins
 {
-    [Info("Discord Sign Logger", "MJSU", "1.0.6")]
+    [Info("Discord Sign Logger", "MJSU", "1.0.7")]
     [Description("Logs Sign / Firework Changes To Discord")]
     public partial class DiscordSignLogger : RustPlugin
     {
@@ -492,7 +492,10 @@ namespace Oxide.Plugins
                 
                 if (!string.IsNullOrEmpty(button.ServerMessage))
                 {
-                    covalence.Server.Broadcast(button.ServerMessage);
+                    _sb.Clear();
+                    _sb.Append(button.ServerMessage);
+                    ParsePlaceholders(logPlayer, _sb);
+                    covalence.Server.Broadcast(_sb.ToString());
                 }
                 
                 if (_pluginConfig.DisableDiscordButton)

@@ -133,7 +133,10 @@ namespace Rust.SignLogger.Plugins
 
                 if (!string.IsNullOrEmpty(button.ServerMessage))
                 {
-                    covalence.Server.Broadcast(button.ServerMessage);
+                    _sb.Clear();
+                    _sb.Append(button.ServerMessage);
+                    ParsePlaceholders(logPlayer, _sb);
+                    covalence.Server.Broadcast(_sb.ToString());
                 }
                 
                 if (_pluginConfig.DisableDiscordButton)
