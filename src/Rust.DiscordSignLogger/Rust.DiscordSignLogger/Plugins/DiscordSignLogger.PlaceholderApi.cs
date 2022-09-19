@@ -13,7 +13,9 @@ namespace Rust.SignLogger.Plugins
     //Define:FileOrder=11
     public partial class DiscordSignLogger
     {
+#pragma warning disable CS0649
         [PluginReference] private Plugin PlaceholderAPI;
+#pragma warning restore CS0649
         private Action<IPlayer, StringBuilder, bool> _replacer;
         
         private string ParsePlaceholders(IPlayer player, string field)

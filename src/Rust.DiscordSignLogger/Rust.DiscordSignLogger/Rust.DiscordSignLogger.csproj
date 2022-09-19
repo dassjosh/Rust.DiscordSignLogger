@@ -34,7 +34,7 @@
       <Reference Include="Oxide.CSharp, Version=2.0.4046.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Oxide.CSharp.dll</HintPath>
       </Reference>
-      <Reference Include="Oxide.Ext.Discord, Version=2.1.2.0, Culture=neutral, PublicKeyToken=null">
+      <Reference Include="Oxide.Ext.Discord">
         <HintPath>..\..\References\Oxide.Ext.Discord.dll</HintPath>
       </Reference>
       <Reference Include="Oxide.References, Version=2.0.3779.0, Culture=neutral, PublicKeyToken=null">

@@ -21,10 +21,16 @@ namespace Rust.SignLogger.Plugins
     //Define:FileOrder=2
     public partial class DiscordSignLogger
     {
+#pragma warning disable CS0649
+        // ReSharper disable InconsistentNaming
         [PluginReference] private Plugin RustTranslationAPI, SignArtist;
+        // ReSharper restore InconsistentNaming
+#pragma warning restore CS0649
         
         [DiscordClient]
+#pragma warning disable CS0649
         private DiscordClient _client;
+#pragma warning restore CS0649
         
         private PluginConfig _pluginConfig;
         private PluginData _pluginData;

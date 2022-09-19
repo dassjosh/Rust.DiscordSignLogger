@@ -33,18 +33,24 @@ using Color = System.Drawing.Color;
 using Graphics = System.Drawing.Graphics;
 using Star = ProtoBuf.PatternFirework.Star;
 
-//DiscordSignLogger created with PluginMerge v(1.0.4.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
+//DiscordSignLogger created with PluginMerge v(1.0.5.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
 namespace Oxide.Plugins
 {
-    [Info("Discord Sign Logger", "MJSU", "1.0.7")]
+    [Info("Discord Sign Logger", "MJSU", "1.0.8")]
     [Description("Logs Sign / Firework Changes To Discord")]
     public partial class DiscordSignLogger : RustPlugin
     {
         #region Plugins\DiscordSignLogger.Fields.cs
+        #pragma warning disable CS0649
+        // ReSharper disable InconsistentNaming
         [PluginReference] private Plugin RustTranslationAPI, SignArtist;
+        // ReSharper restore InconsistentNaming
+        #pragma warning restore CS0649
         
         [DiscordClient]
+        #pragma warning disable CS0649
         private DiscordClient _client;
+        #pragma warning restore CS0649
         
         private PluginConfig _pluginConfig;
         private PluginData _pluginData;
@@ -341,16 +347,24 @@ namespace Oxide.Plugins
             bool subscribe = false;
             foreach (SignMessage message in _pluginConfig.SignMessages)
             {
-                if (message.MessageChannel == null && message.ChannelId.IsValid() && guild.Channels.ContainsKey(message.ChannelId))
+                if (message.MessageChannel == null && message.ChannelId.IsValid())
                 {
-                    message.MessageChannel = guild.Channels[message.ChannelId];
-                    subscribe = true;
+                    DiscordChannel channel = GetChannel(guild, message.ChannelId);
+                    if (channel != null)
+                    {
+                        message.MessageChannel = channel;
+                        subscribe = true;
+                    }
                 }
             }
             
-            if (_pluginConfig.ActionLog.ChannelId.IsValid() && guild.Channels.ContainsKey(_pluginConfig.ActionLog.ChannelId))
+            if (_pluginConfig.ActionLog.ChannelId.IsValid())
             {
-                _actionChannel = guild.Channels[_pluginConfig.ActionLog.ChannelId];
+                DiscordChannel channel = GetChannel(guild, _pluginConfig.ActionLog.ChannelId);
+                if (channel != null)
+                {
+                    _actionChannel = channel;
+                }
             }
             
             if (subscribe)
@@ -874,6 +888,11 @@ namespace Oxide.Plugins
         #endregion
 
         #region Plugins\DiscordSignLogger.Helpers.cs
+        public DiscordChannel GetChannel(DiscordGuild guild, Snowflake id)
+        {
+            return guild?.Channels[id] ?? guild?.Threads[id];
+        }
+        
         public IPlayer FindPlayerById(string id)
         {
             return covalence.Players.FindPlayerById(id);
@@ -986,7 +1005,9 @@ namespace Oxide.Plugins
         #endregion
 
         #region Plugins\DiscordSignLogger.PlaceholderApi.cs
+        #pragma warning disable CS0649
         [PluginReference] private Plugin PlaceholderAPI;
+        #pragma warning restore CS0649
         private Action<IPlayer, StringBuilder, bool> _replacer;
         
         private string ParsePlaceholders(IPlayer player, string field)

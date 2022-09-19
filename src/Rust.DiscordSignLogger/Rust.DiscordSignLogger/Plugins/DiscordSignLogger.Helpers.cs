@@ -1,6 +1,9 @@
 using System;
 using Oxide.Core;
 using Oxide.Core.Libraries.Covalence;
+using Oxide.Ext.Discord.Entities;
+using Oxide.Ext.Discord.Entities.Channels;
+using Oxide.Ext.Discord.Entities.Guilds;
 using Rust.SignLogger.Lang;
 
 namespace Rust.SignLogger.Plugins
@@ -8,6 +11,11 @@ namespace Rust.SignLogger.Plugins
     //Define:FileOrder=9
     public partial class DiscordSignLogger
     {
+        public DiscordChannel GetChannel(DiscordGuild guild, Snowflake id)
+        {
+            return guild?.Channels[id] ?? guild?.Threads[id];
+        }
+        
         public IPlayer FindPlayerById(string id)
         {
             return covalence.Players.FindPlayerById(id);

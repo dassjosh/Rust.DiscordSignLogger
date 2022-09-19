@@ -1,5 +1,6 @@
 using Oxide.Core.Plugins;
 using Oxide.Ext.Discord.Constants;
+using Oxide.Ext.Discord.Entities.Channels;
 using Oxide.Ext.Discord.Entities.Guilds;
 using Oxide.Ext.Discord.Entities.Interactions;
 using Rust.SignLogger.Configuration;
@@ -15,16 +16,24 @@ namespace Rust.SignLogger.Plugins
             bool subscribe = false;
             foreach (SignMessage message in _pluginConfig.SignMessages)
             {
-                if (message.MessageChannel == null && message.ChannelId.IsValid() && guild.Channels.ContainsKey(message.ChannelId))
+                if (message.MessageChannel == null && message.ChannelId.IsValid())
                 {
-                    message.MessageChannel = guild.Channels[message.ChannelId];
-                    subscribe = true;
+                    DiscordChannel channel = GetChannel(guild, message.ChannelId);
+                    if (channel != null)
+                    {
+                        message.MessageChannel = channel;
+                        subscribe = true;
+                    }
                 }
             }
 
-            if (_pluginConfig.ActionLog.ChannelId.IsValid() && guild.Channels.ContainsKey(_pluginConfig.ActionLog.ChannelId))
+            if (_pluginConfig.ActionLog.ChannelId.IsValid())
             {
-                _actionChannel = guild.Channels[_pluginConfig.ActionLog.ChannelId];
+                DiscordChannel channel = GetChannel(guild, _pluginConfig.ActionLog.ChannelId);
+                if (channel != null)
+                {
+                    _actionChannel = channel;
+                }
             }
 
             if (subscribe)

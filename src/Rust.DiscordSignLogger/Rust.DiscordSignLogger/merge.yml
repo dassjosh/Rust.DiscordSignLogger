@@ -3,8 +3,6 @@ Platform: Oxide
 Merge Settings:
 # Outputted plugin name
   Plugin Name: DiscordSignLogger
-  # Outputted plugin base class
-  Plugin Base Class: RustPlugin
   # Which type of file to output (Plugin, Framework, or MergeFramework)
   Creator Mode: Plugin
   # Paths to use when reading in source code relative to the merge config
