@@ -209,6 +209,8 @@ Please see this post to make sure you have required dependencies installed
   "Discord Extension Log Level (Verbose, Debug, Info, Warning, Error, Exception, Off)": "Info"
 }
 ```
+  
+**Note**: You can use Thread Channel ID's for Channel ID's as of version 1.0.8  
 
 ### Button Commands
 Button commands are run as server console commands. Any command that can be ran from the console will work as a button command
