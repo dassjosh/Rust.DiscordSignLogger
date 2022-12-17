@@ -1,3 +1,4 @@
+using System;
 using Oxide.Plugins;
 using Rust.SignLogger.Configuration;
 using Rust.SignLogger.Enums;
@@ -72,7 +73,6 @@ namespace Rust.SignLogger.Plugins
             float duration = arg.GetFloat(1);
 
             _pluginData.AddSignBan(playerId, duration);
-            SaveData();
             
             if (duration <= 0)
             {
@@ -80,8 +80,10 @@ namespace Rust.SignLogger.Plugins
             }
             else
             {
-                arg.ReplyWith($"{playerId} has been sign blocked for {duration} seconds");
+                arg.ReplyWith($"{playerId} has been sign blocked for {GetFormattedDurationTime(TimeSpan.FromSeconds(duration))}");
             }
+            
+            SaveData();
         }
 
         [ConsoleCommand("dsl.signunblock")]

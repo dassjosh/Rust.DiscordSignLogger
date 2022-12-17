@@ -67,12 +67,12 @@ namespace Rust.SignLogger.Plugins
                 BuildTime(_sb, time.Days == 1 ? LangKeys.Format.Day : LangKeys.Format.Days, player, time.Days);
             }
 
-            if (time.TotalHours >= 0)
+            if (time.TotalHours >= 1)
             {
                 BuildTime(_sb, time.Hours == 1 ? LangKeys.Format.Hour : LangKeys.Format.Hours, player, time.Hours);
             }
 
-            if (time.TotalMinutes >= 0)
+            if (time.TotalMinutes >= 1)
             {
                 BuildTime(_sb, time.Minutes == 1 ? LangKeys.Format.Minute : LangKeys.Format.Minutes, player, time.Minutes);
             }

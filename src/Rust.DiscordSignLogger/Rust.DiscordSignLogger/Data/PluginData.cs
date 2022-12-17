@@ -39,7 +39,7 @@ namespace Rust.SignLogger.Data
 
         public void AddSignBan(ulong player, float duration)
         {
-            SignBannedUsers[player] = duration <= 0 ? DateTime.MaxValue : DateTime.UtcNow + TimeSpan.FromMinutes(duration);
+            SignBannedUsers[player] = duration <= 0 ? DateTime.MaxValue : DateTime.UtcNow + TimeSpan.FromSeconds(duration);
         }
 
         public void RemoveSignBan(ulong player)
