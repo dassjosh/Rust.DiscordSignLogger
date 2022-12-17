@@ -36,7 +36,7 @@ using Star = ProtoBuf.PatternFirework.Star;
 //DiscordSignLogger created with PluginMerge v(1.0.5.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
 namespace Oxide.Plugins
 {
-    [Info("Discord Sign Logger", "MJSU", "1.0.8")]
+    [Info("Discord Sign Logger", "MJSU", "1.0.9")]
     [Description("Logs Sign / Firework Changes To Discord")]
     public partial class DiscordSignLogger : RustPlugin
     {
@@ -825,7 +825,6 @@ namespace Oxide.Plugins
             float duration = arg.GetFloat(1);
             
             _pluginData.AddSignBan(playerId, duration);
-            SaveData();
             
             if (duration <= 0)
             {
@@ -833,8 +832,10 @@ namespace Oxide.Plugins
             }
             else
             {
-                arg.ReplyWith($"{playerId} has been sign blocked for {duration} seconds");
+                arg.ReplyWith($"{playerId} has been sign blocked for {GetFormattedDurationTime(TimeSpan.FromSeconds(duration))}");
             }
+            
+            SaveData();
         }
         
         [ConsoleCommand("dsl.signunblock")]
@@ -983,12 +984,12 @@ namespace Oxide.Plugins
                 BuildTime(_sb, time.Days == 1 ? LangKeys.Format.Day : LangKeys.Format.Days, player, time.Days);
             }
             
-            if (time.TotalHours >= 0)
+            if (time.TotalHours >= 1)
             {
                 BuildTime(_sb, time.Hours == 1 ? LangKeys.Format.Hour : LangKeys.Format.Hours, player, time.Hours);
             }
             
-            if (time.TotalMinutes >= 0)
+            if (time.TotalMinutes >= 1)
             {
                 BuildTime(_sb, time.Minutes == 1 ? LangKeys.Format.Minute : LangKeys.Format.Minutes, player, time.Minutes);
             }
@@ -1577,7 +1578,7 @@ namespace Oxide.Plugins
             
             public void AddSignBan(ulong player, float duration)
             {
-                SignBannedUsers[player] = duration <= 0 ? DateTime.MaxValue : DateTime.UtcNow + TimeSpan.FromMinutes(duration);
+                SignBannedUsers[player] = duration <= 0 ? DateTime.MaxValue : DateTime.UtcNow + TimeSpan.FromSeconds(duration);
             }
             
             public void RemoveSignBan(ulong player)
