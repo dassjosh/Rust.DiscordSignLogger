@@ -28,19 +28,19 @@
       <Reference Include="Facepunch.UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Facepunch.UnityEngine.dll</HintPath>
       </Reference>
-      <Reference Include="Oxide.Core, Version=2.0.4002.0, Culture=neutral, PublicKeyToken=null">
+      <Reference Include="Oxide.Core">
         <HintPath>..\..\References\Oxide.Core.dll</HintPath>
       </Reference>
-      <Reference Include="Oxide.CSharp, Version=2.0.4046.0, Culture=neutral, PublicKeyToken=null">
+      <Reference Include="Oxide.CSharp">
         <HintPath>..\..\References\Oxide.CSharp.dll</HintPath>
       </Reference>
       <Reference Include="Oxide.Ext.Discord">
         <HintPath>..\..\References\Oxide.Ext.Discord.dll</HintPath>
       </Reference>
-      <Reference Include="Oxide.References, Version=2.0.3779.0, Culture=neutral, PublicKeyToken=null">
+      <Reference Include="Oxide.References">
         <HintPath>..\..\References\Oxide.References.dll</HintPath>
       </Reference>
-      <Reference Include="Oxide.Rust, Version=2.0.5355.0, Culture=neutral, PublicKeyToken=null">
+      <Reference Include="Oxide.Rust">
         <HintPath>..\..\References\Oxide.Rust.dll</HintPath>
       </Reference>
       <Reference Include="Oxide.Unity, Version=2.0.3772.0, Culture=neutral, PublicKeyToken=null">

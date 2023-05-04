@@ -36,7 +36,7 @@ using Star = ProtoBuf.PatternFirework.Star;
 //DiscordSignLogger created with PluginMerge v(1.0.5.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
 namespace Oxide.Plugins
 {
-    [Info("Discord Sign Logger", "MJSU", "1.0.9")]
+    [Info("Discord Sign Logger", "MJSU", "1.0.10")]
     [Description("Logs Sign / Firework Changes To Discord")]
     public partial class DiscordSignLogger : RustPlugin
     {
@@ -72,7 +72,7 @@ namespace Oxide.Plugins
         private readonly StringBuilder _sb = new StringBuilder();
         private readonly StringBuilder _actions = new StringBuilder();
         public readonly Hash<UnityEngine.Color, Brush> FireworkBrushes = new Hash<UnityEngine.Color, Brush>();
-        private readonly Hash<uint, SignageUpdate> _updates = new  Hash<uint, SignageUpdate>();
+        private readonly Hash<NetworkableId, SignageUpdate> _updates = new  Hash<NetworkableId, SignageUpdate>();
         private readonly Hash<string, string> _prefabNameLookup = new Hash<string, string>();
         
         private DiscordChannel _actionChannel;
@@ -768,7 +768,7 @@ namespace Oxide.Plugins
                 return;
             }
             
-            uint id = arg.GetUInt(0);
+            NetworkableId id = arg.GetEntityID(0);
             uint index = arg.GetUInt(1);
             BaseEntity entity = BaseNetworkable.serverEntities.Find(id) as BaseEntity;
             if (entity == null)
@@ -1047,7 +1047,7 @@ namespace Oxide.Plugins
             RegisterPlaceholder("dsl.entity.id", (player, s) =>
             {
                 BaseEntity entity = _log.Entity;
-                return entity ? entity.net?.ID ?? 0 : 0;
+                return entity ? entity.net?.ID.Value ?? 0 : 0;
                 
             }, "Displays the entity ID");
             
@@ -1614,7 +1614,7 @@ namespace Oxide.Plugins
         public class SignUpdateLog : ILogEvent
         {
             public ulong PlayerId { get; set; }
-            public uint EntityId { get; set; }
+            public ulong EntityId { get; set; }
             public int ItemId { get; set; }
             public uint TextureIndex { get; set; }
             
@@ -1643,7 +1643,7 @@ namespace Oxide.Plugins
                         return null;
                     }
                     
-                    _entity = BaseNetworkable.serverEntities.Find(EntityId) as BaseEntity;
+                    _entity = BaseNetworkable.serverEntities.Find(new NetworkableId(EntityId)) as BaseEntity;
                     
                     return _entity;
                 }
@@ -1658,7 +1658,7 @@ namespace Oxide.Plugins
             public SignUpdateLog(BaseImageUpdate update)
             {
                 PlayerId = update.PlayerId;
-                EntityId = update.Entity.net.ID;
+                EntityId = update.Entity.net.ID.Value;
                 LogDate = DateTime.UtcNow;
                 
                 if (update.SupportsTextureIndex)
@@ -2035,6 +2035,55 @@ namespace Oxide.Plugins
             public ActionMessageButtonCommand(ActionMessageButtonCommand settings) : base(settings)
             {
                 
+            }
+        }
+        #endregion
+
+        #region Configuration\PluginSupport\PluginSettings.cs
+        public class PluginSettings
+        {
+            [JsonProperty("Sign Artist Settings")]
+            public SignArtistSettings SignArtist { get; set; }
+            
+            public PluginSettings(PluginSettings settings)
+            {
+                SignArtist = new SignArtistSettings(settings?.SignArtist);
+            }
+        }
+        #endregion
+
+        #region Configuration\PluginSupport\SignArtistSettings.cs
+        public class SignArtistSettings
+        {
+            [JsonProperty("Log /sil")]
+            public bool LogSil { get; set; }
+            
+            [JsonProperty("Log /sili")]
+            public bool LogSili { get; set; }
+            
+            [JsonProperty("Log /silt")]
+            public bool LogSilt { get; set; }
+            
+            public SignArtistSettings(SignArtistSettings settings)
+            {
+                LogSil = settings?.LogSil ?? true;
+                LogSili = settings?.LogSili ?? true;
+                LogSilt = settings?.LogSilt ?? true;
+            }
+            
+            public bool ShouldLog(string url)
+            {
+                if (url.StartsWith("http://assets.imgix.net"))
+                {
+                    return LogSilt;
+                }
+                
+                if (ItemManager.itemDictionaryByName.ContainsKey(url))
+                {
+                    return LogSili;
+                }
+                
+                return LogSil;
             }
         }
         #endregion

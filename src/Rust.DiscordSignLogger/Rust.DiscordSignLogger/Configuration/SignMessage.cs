@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Oxide.Ext.Discord.Entities;
 using Oxide.Ext.Discord.Entities.Channels;
 using Oxide.Ext.Discord.Entities.Interactions.MessageComponents;
+using Rust.SignLogger.Configuration.PluginSupport;
 using Rust.SignLogger.Discord;
 
 namespace Rust.SignLogger.Configuration

@@ -1,10 +1,12 @@
 # What platform to write the code file for (Oxide, uMod)
 Platform: Oxide
 Merge Settings:
-# Outputted plugin name
+  # Outputted plugin name
   Plugin Name: DiscordSignLogger
   # Which type of file to output (Plugin, Framework, or MergeFramework)
   Creator Mode: Plugin
+  # Overrides the default namespace
+  Namespace Override: ''
   # Paths to use when reading in source code relative to the merge config
   Plugin Input Paths:
   - ./
@@ -24,7 +26,7 @@ Merge Settings:
   Ignore Namespaces:
   - Rust.SignLogger
   Code Style:
-  # Character to use for code indents
+    # Character to use for code indents
     Indent Character: ' '
     # The amount of characters to use when indenting once
     Indent Char Amount: 4

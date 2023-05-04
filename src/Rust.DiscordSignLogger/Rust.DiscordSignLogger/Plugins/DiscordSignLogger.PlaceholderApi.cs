@@ -54,7 +54,7 @@ namespace Rust.SignLogger.Plugins
             RegisterPlaceholder("dsl.entity.id", (player, s) =>
             {
                 BaseEntity entity = _log.Entity;
-                return entity ? entity.net?.ID ?? 0 : 0;
+                return entity ? entity.net?.ID.Value ?? 0 : 0;
 
             }, "Displays the entity ID");
             

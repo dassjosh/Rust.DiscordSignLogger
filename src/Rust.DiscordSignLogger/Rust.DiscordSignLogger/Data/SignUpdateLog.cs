@@ -10,7 +10,7 @@ namespace Rust.SignLogger.Data
     public class SignUpdateLog : ILogEvent
     {
         public ulong PlayerId { get; set; }
-        public uint EntityId { get; set; }
+        public ulong EntityId { get; set; }
         public int ItemId { get; set; }
         public uint TextureIndex { get; set; }
 
@@ -39,7 +39,7 @@ namespace Rust.SignLogger.Data
                     return null;
                 }
 
-                _entity = BaseNetworkable.serverEntities.Find(EntityId) as BaseEntity;
+                _entity = BaseNetworkable.serverEntities.Find(new NetworkableId(EntityId)) as BaseEntity;
                 
                 return _entity;
             }
@@ -54,7 +54,7 @@ namespace Rust.SignLogger.Data
         public SignUpdateLog(BaseImageUpdate update)
         {
             PlayerId = update.PlayerId;
-            EntityId = update.Entity.net.ID;
+            EntityId = update.Entity.net.ID.Value;
             LogDate = DateTime.UtcNow;
 
             if (update.SupportsTextureIndex)

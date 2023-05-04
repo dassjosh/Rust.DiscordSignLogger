@@ -52,7 +52,7 @@ namespace Rust.SignLogger.Plugins
         private readonly StringBuilder _sb = new StringBuilder();
         private readonly StringBuilder _actions = new StringBuilder();
         public readonly Hash<UnityEngine.Color, Brush> FireworkBrushes = new Hash<UnityEngine.Color, Brush>();
-        private readonly Hash<uint, SignageUpdate> _updates = new  Hash<uint, SignageUpdate>();
+        private readonly Hash<NetworkableId, SignageUpdate> _updates = new  Hash<NetworkableId, SignageUpdate>();
         private readonly Hash<string, string> _prefabNameLookup = new Hash<string, string>();
 
         private DiscordChannel _actionChannel;

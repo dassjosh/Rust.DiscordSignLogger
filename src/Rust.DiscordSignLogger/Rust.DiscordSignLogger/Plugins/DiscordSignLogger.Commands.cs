@@ -2,6 +2,7 @@ using System;
 using Oxide.Plugins;
 using Rust.SignLogger.Configuration;
 using Rust.SignLogger.Enums;
+using UnityEngine;
 
 namespace Rust.SignLogger.Plugins
 {
@@ -16,7 +17,7 @@ namespace Rust.SignLogger.Plugins
                 return;
             }
 
-            uint id = arg.GetUInt(0);
+            NetworkableId id = arg.GetEntityID(0);
             uint index = arg.GetUInt(1);
             BaseEntity entity = BaseNetworkable.serverEntities.Find(id) as BaseEntity;
             if (entity == null)
