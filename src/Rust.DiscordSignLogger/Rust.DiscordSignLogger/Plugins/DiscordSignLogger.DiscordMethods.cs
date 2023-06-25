@@ -66,7 +66,7 @@ namespace Rust.SignLogger.Plugins
 
                     create.Components = builder.Build();
 
-                    signMessage.MessageChannel?.CreateMessage(_client, create, discordMessage => { _pluginData.AddLog(discordMessage.Id, log); });
+                    signMessage.MessageChannel?.CreateMessage(Client, create).Then(discordMessage => { _pluginData.AddLog(discordMessage.Id, log); });
                 }
             }
             finally

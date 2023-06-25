@@ -9,16 +9,20 @@ using Oxide.Ext.Discord;
 using Oxide.Ext.Discord.Attributes;
 using Oxide.Ext.Discord.Builders;
 using Oxide.Ext.Discord.Builders.MessageComponents;
+using Oxide.Ext.Discord.Clients;
+using Oxide.Ext.Discord.Connections;
 using Oxide.Ext.Discord.Constants;
 using Oxide.Ext.Discord.Entities;
 using Oxide.Ext.Discord.Entities.Channels;
-using Oxide.Ext.Discord.Entities.Gatway;
+using Oxide.Ext.Discord.Entities.Gateway;
 using Oxide.Ext.Discord.Entities.Guilds;
 using Oxide.Ext.Discord.Entities.Interactions;
 using Oxide.Ext.Discord.Entities.Interactions.MessageComponents;
+using Oxide.Ext.Discord.Entities.Interactions.Response;
 using Oxide.Ext.Discord.Entities.Messages;
 using Oxide.Ext.Discord.Entities.Messages.AllowedMentions;
 using Oxide.Ext.Discord.Entities.Messages.Embeds;
+using Oxide.Ext.Discord.Interfaces;
 using Oxide.Ext.Discord.Logging;
 using System;
 using System.Collections.Generic;
@@ -38,7 +42,7 @@ namespace Oxide.Plugins
 {
     [Info("Discord Sign Logger", "MJSU", "1.0.10")]
     [Description("Logs Sign / Firework Changes To Discord")]
-    public partial class DiscordSignLogger : RustPlugin
+    public partial class DiscordSignLogger : RustPlugin, IDiscordPlugin
     {
         #region Plugins\DiscordSignLogger.Fields.cs
         #pragma warning disable CS0649
@@ -47,9 +51,8 @@ namespace Oxide.Plugins
         // ReSharper restore InconsistentNaming
         #pragma warning restore CS0649
         
-        [DiscordClient]
         #pragma warning disable CS0649
-        private DiscordClient _client;
+        public DiscordClient Client { get; set; }
         #pragma warning restore CS0649
         
         private PluginConfig _pluginConfig;
@@ -197,7 +200,7 @@ namespace Oxide.Plugins
                 }
             }
             
-            _client.Connect(new DiscordSettings
+            Client.Connect(new BotConnection()
             {
                 Intents = GatewayIntents.Guilds,
                 ApiToken = _pluginConfig.DiscordApiKey,
@@ -492,7 +495,7 @@ namespace Oxide.Plugins
                         _actionMessage.Components = builder.Build();
                     }
                     
-                    _actionChannel.CreateMessage(_client, _actionMessage);
+                    _actionChannel.CreateMessage(Client, _actionMessage);
                 }
                 
                 if (!string.IsNullOrEmpty(button.PlayerMessage))
@@ -517,7 +520,7 @@ namespace Oxide.Plugins
                     DisableButton(interaction.Message, interaction.Data.CustomId);
                 }
                 
-                interaction.CreateInteractionResponse(_client, new InteractionResponse
+                interaction.CreateResponse(Client, new InteractionResponse
                 {
                     Type = InteractionResponseType.UpdateMessage,
                     Data = new InteractionCallbackData
@@ -598,7 +601,7 @@ namespace Oxide.Plugins
         
         private void SendComponentUpdateResponse(DiscordInteraction interaction)
         {
-            interaction.CreateInteractionResponse(_client, new InteractionResponse
+            interaction.CreateResponse(Client, new InteractionResponse
             {
                 Type = InteractionResponseType.UpdateMessage,
                 Data = new InteractionCallbackData
@@ -610,7 +613,7 @@ namespace Oxide.Plugins
         
         public void CreateResponse(DiscordInteraction interaction, string response)
         {
-            interaction.CreateInteractionResponse(_client, new InteractionResponse
+            interaction.CreateResponse(Client, new InteractionResponse
             {
                 Type = InteractionResponseType.ChannelMessageWithSource,
                 Data = new InteractionCallbackData
@@ -672,7 +675,7 @@ namespace Oxide.Plugins
                     
                     create.Components = builder.Build();
                     
-                    signMessage.MessageChannel?.CreateMessage(_client, create, discordMessage => { _pluginData.AddLog(discordMessage.Id, log); });
+                    signMessage.MessageChannel?.CreateMessage(Client, create).Then(discordMessage => { _pluginData.AddLog(discordMessage.Id, log); });
                 }
             }
             finally

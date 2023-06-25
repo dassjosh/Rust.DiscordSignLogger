@@ -4,6 +4,7 @@ using System.Text;
 using Oxide.Core.Plugins;
 using Oxide.Ext.Discord;
 using Oxide.Ext.Discord.Attributes;
+using Oxide.Ext.Discord.Clients;
 using Oxide.Ext.Discord.Entities;
 using Oxide.Ext.Discord.Entities.Channels;
 using Oxide.Ext.Discord.Entities.Guilds;
@@ -27,9 +28,8 @@ namespace Rust.SignLogger.Plugins
         // ReSharper restore InconsistentNaming
 #pragma warning restore CS0649
         
-        [DiscordClient]
 #pragma warning disable CS0649
-        private DiscordClient _client;
+        public DiscordClient Client { get; set; }
 #pragma warning restore CS0649
         
         private PluginConfig _pluginConfig;

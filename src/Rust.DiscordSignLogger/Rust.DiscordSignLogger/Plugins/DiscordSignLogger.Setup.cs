@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Oxide.Core;
-using Oxide.Ext.Discord;
-using Oxide.Ext.Discord.Entities.Gatway;
+using Oxide.Ext.Discord.Connections;
+using Oxide.Ext.Discord.Entities.Gateway;
 using Rust.SignLogger.Configuration;
 using Rust.SignLogger.Configuration.ActionLog;
 using Rust.SignLogger.Data;
@@ -118,7 +118,7 @@ namespace Rust.SignLogger.Plugins
                 }
             }
             
-            _client.Connect(new DiscordSettings
+            Client.Connect(new BotConnection()
             {
                 Intents = GatewayIntents.Guilds,
                 ApiToken = _pluginConfig.DiscordApiKey,

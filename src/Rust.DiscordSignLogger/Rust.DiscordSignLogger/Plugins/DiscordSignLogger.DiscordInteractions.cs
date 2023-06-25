@@ -3,6 +3,7 @@ using Oxide.Ext.Discord.Builders.MessageComponents;
 using Oxide.Ext.Discord.Entities;
 using Oxide.Ext.Discord.Entities.Interactions;
 using Oxide.Ext.Discord.Entities.Interactions.MessageComponents;
+using Oxide.Ext.Discord.Entities.Interactions.Response;
 using Oxide.Ext.Discord.Entities.Messages;
 using Rust.SignLogger.Configuration;
 using Rust.SignLogger.Configuration.ActionLog;
@@ -119,7 +120,7 @@ namespace Rust.SignLogger.Plugins
                         _actionMessage.Components = builder.Build();
                     }
                     
-                    _actionChannel.CreateMessage(_client, _actionMessage);
+                    _actionChannel.CreateMessage(Client, _actionMessage);
                 }
 
                 if (!string.IsNullOrEmpty(button.PlayerMessage))
@@ -144,7 +145,7 @@ namespace Rust.SignLogger.Plugins
                     DisableButton(interaction.Message, interaction.Data.CustomId);
                 }
             
-                interaction.CreateInteractionResponse(_client, new InteractionResponse
+                interaction.CreateResponse(Client, new InteractionResponse
                 {
                     Type = InteractionResponseType.UpdateMessage,
                     Data = new InteractionCallbackData
@@ -225,7 +226,7 @@ namespace Rust.SignLogger.Plugins
         
         private void SendComponentUpdateResponse(DiscordInteraction interaction)
         {
-            interaction.CreateInteractionResponse(_client, new InteractionResponse
+            interaction.CreateResponse(Client, new InteractionResponse
             {
                 Type = InteractionResponseType.UpdateMessage,
                 Data = new InteractionCallbackData
@@ -237,7 +238,7 @@ namespace Rust.SignLogger.Plugins
         
         public void CreateResponse(DiscordInteraction interaction, string response)
         {
-            interaction.CreateInteractionResponse(_client, new InteractionResponse
+            interaction.CreateResponse(Client, new InteractionResponse
             {
                 Type = InteractionResponseType.ChannelMessageWithSource,
                 Data = new InteractionCallbackData
