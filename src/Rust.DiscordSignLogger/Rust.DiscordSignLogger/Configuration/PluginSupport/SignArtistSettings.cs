@@ -1,38 +1,40 @@
 ﻿using Newtonsoft.Json;
 
-namespace Rust.SignLogger.Configuration.PluginSupport
+namespace Rust.SignLogger.Configuration.PluginSupport;
+
+public class SignArtistSettings
 {
-    public class SignArtistSettings
+    [JsonProperty("Log /sil")] 
+    public bool LogSil { get; set; }
+
+    [JsonProperty("Log /sili")] 
+    public bool LogSili { get; set; }
+
+    [JsonProperty("Log /silt")] 
+    public bool LogSilt { get; set; }
+
+    [JsonConstructor]
+    private SignArtistSettings() { }
+    
+    public SignArtistSettings(SignArtistSettings settings)
     {
-        [JsonProperty("Log /sil")]
-        public bool LogSil { get; set; }
-        
-        [JsonProperty("Log /sili")]
-        public bool LogSili { get; set; }
-        
-        [JsonProperty("Log /silt")]
-        public bool LogSilt { get; set; }
+        LogSil = settings?.LogSil ?? true;
+        LogSili = settings?.LogSili ?? true;
+        LogSilt = settings?.LogSilt ?? true;
+    }
 
-        public SignArtistSettings(SignArtistSettings settings)
+    public bool ShouldLog(string url)
+    {
+        if (url.StartsWith("http://assets.imgix.net"))
         {
-            LogSil = settings?.LogSil ?? true;
-            LogSili = settings?.LogSili ?? true;
-            LogSilt = settings?.LogSilt ?? true;
+            return LogSilt;
         }
 
-        public bool ShouldLog(string url)
+        if (ItemManager.itemDictionaryByName.ContainsKey(url))
         {
-            if (url.StartsWith("http://assets.imgix.net"))
-            {
-                return LogSilt;
-            }
-
-            if (ItemManager.itemDictionaryByName.ContainsKey(url))
-            {
-                return LogSili;
-            }
-
-            return LogSil;
+            return LogSili;
         }
+
+        return LogSil;
     }
 }

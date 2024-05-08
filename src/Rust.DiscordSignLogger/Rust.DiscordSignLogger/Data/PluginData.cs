@@ -1,72 +1,44 @@
 using System;
-using System.Collections.Generic;
-using Oxide.Ext.Discord.Entities;
 using Oxide.Plugins;
 
-namespace Rust.SignLogger.Data
+namespace Rust.SignLogger.Data;
+
+public class PluginData
 {
-    public class PluginData
+    public Hash<ulong, DateTime> SignBannedUsers = new();
+
+    public void AddSignBan(ulong player, float duration)
     {
-        public Hash<Snowflake, SignUpdateLog> SignLogs = new Hash<Snowflake, SignUpdateLog>();
-        public Hash<ulong, DateTime> SignBannedUsers = new Hash<ulong, DateTime>();
+        SignBannedUsers[player] = duration <= 0 ? DateTime.MaxValue : DateTime.UtcNow + TimeSpan.FromSeconds(duration);
+    }
 
-        public SignUpdateLog GetLog(Snowflake messageId)
+    public void RemoveSignBan(ulong player)
+    {
+        SignBannedUsers.Remove(player);
+    }
+
+    public bool IsSignBanned(BasePlayer player) => IsSignBanned(player.userID);
+    public bool IsSignBanned(string playerId) => IsSignBanned(ulong.Parse(playerId));
+
+    public bool IsSignBanned(ulong playerId)
+    {
+        if (!SignBannedUsers.ContainsKey(playerId))
         {
-            return SignLogs[messageId];
+            return false;
         }
 
-        public void AddLog(Snowflake messageId, SignUpdateLog data)
+        DateTime bannedUntil = SignBannedUsers[playerId];
+        if (bannedUntil < DateTime.UtcNow)
         {
-            SignLogs[messageId] = data;
+            SignBannedUsers.Remove(playerId);
+            return false;
         }
 
-        public void CleanupExpired(float deleteAfter)
-        {
-            List<Snowflake> cleanup = new List<Snowflake>();
-            foreach (KeyValuePair<Snowflake, SignUpdateLog> log in SignLogs)
-            {
-                if ((DateTime.UtcNow - log.Value.LogDate).TotalDays >= deleteAfter)
-                {
-                    cleanup.Add(log.Key);
-                }
-            }
+        return true;
+    }
 
-            foreach (Snowflake key in cleanup)
-            {
-                SignLogs.Remove(key);
-            }
-        }
-
-        public void AddSignBan(ulong player, float duration)
-        {
-            SignBannedUsers[player] = duration <= 0 ? DateTime.MaxValue : DateTime.UtcNow + TimeSpan.FromSeconds(duration);
-        }
-
-        public void RemoveSignBan(ulong player)
-        {
-            SignBannedUsers.Remove(player);
-        }
-
-        public bool IsSignBanned(BasePlayer player)
-        {
-            if (!SignBannedUsers.ContainsKey(player.userID))
-            {
-                return false;
-            }
-
-            DateTime bannedUntil = SignBannedUsers[player.userID];
-            if (bannedUntil < DateTime.UtcNow)
-            {
-                SignBannedUsers.Remove(player.userID);
-                return false;
-            }
-
-            return true;
-        }
-
-        public TimeSpan GetRemainingBan(BasePlayer player)
-        {
-            return SignBannedUsers[player.userID] - DateTime.UtcNow;
-        }
+    public TimeSpan GetRemainingBan(BasePlayer player)
+    {
+        return SignBannedUsers[player.userID] - DateTime.UtcNow;
     }
 }

@@ -1,155 +1,97 @@
 using System;
 using System.Collections.Generic;
-using Oxide.Core.Libraries.Covalence;
 using Oxide.Ext.Discord.Builders;
-using Oxide.Ext.Discord.Builders.MessageComponents;
-using Oxide.Ext.Discord.Entities.Interactions.MessageComponents;
-using Oxide.Ext.Discord.Entities.Messages;
-using Oxide.Ext.Discord.Entities.Messages.Embeds;
+using Oxide.Ext.Discord.Entities;
+using Oxide.Ext.Discord.Interfaces;
+using Oxide.Ext.Discord.Libraries;
 using Rust.SignLogger.Configuration;
-using Rust.SignLogger.Data;
-using Rust.SignLogger.Discord;
-using Rust.SignLogger.Lang;
+using Rust.SignLogger.Ids;
+using Rust.SignLogger.Placeholders;
+using Rust.SignLogger.State;
+using Rust.SignLogger.Templates;
 using Rust.SignLogger.Updates;
 
-namespace Rust.SignLogger.Plugins
+namespace Rust.SignLogger.Plugins;
+
+//Define:FileOrder=7
+public partial class DiscordSignLogger
 {
-    //Define:FileOrder=7
-    public partial class DiscordSignLogger
+    public void SendDiscordMessage(BaseImageUpdate update)
     {
-        public void SendDiscordMessage(BaseImageUpdate update)
+        SignUpdateState state = new(update);
+            
+        StateKey encodedState = state.Serialize();
+        
+        using PlaceholderData data = GetPlaceholderData(state);
+        data.ManualPool();
+        data.AddPlayer(state.Player)
+            .Add(PlaceholderDataKeys.State, state)
+            .Add(PlaceholderDataKeys.Owner, state.Owner)
+            .Add(PlaceholderDataKeys.MessageState, encodedState);
+
+        if (update is SignageUpdate signage)
         {
-            try
-            {
-                _log = update;
-                SignUpdateLog log = new SignUpdateLog(update);
-                for (int index = 0; index < update.Messages.Count; index++)
-                {
-                    SignMessage signMessage = update.Messages[index];
-                    MessageConfig message = signMessage.MessageConfig;
-
-                    MessageCreate create = new MessageCreate();
-                    if (!string.IsNullOrEmpty(message.Content))
-                    {
-                        create.Content = ParsePlaceholders(null, message.Content);
-                    }
-
-                    if (message.Embeds.Count != 0)
-                    {
-                        create.Embeds = new List<DiscordEmbed>(message.Embeds.Count);
-                        foreach (EmbedConfig config in message.Embeds)
-                        {
-                            create.Embeds.Add(BuildEmbed(update.Player, config, update));
-                        }
-                    }
-
-                    create.AddAttachment("image.png", update.GetImage(), "image/png", $"{update.DisplayName} Updated {update.Entity.ShortPrefabName} @{update.Entity.transform.position} On {DateTime.Now:f}");
-
-                    MessageComponentBuilder builder = new MessageComponentBuilder();
-                    for (int i = 0; i < signMessage.Commands.Count; i++)
-                    {
-                        ImageMessageButtonCommand command = signMessage.Commands[i];
-                        if (command.Commands.Count == 0)
-                        {
-                            continue;
-                        }
-
-                        if (command.Style == ButtonStyle.Link)
-                        {
-                            builder.AddLinkButton(command.DisplayName, ParsePlaceholders(update.Player, command.Commands[0]));
-                        }
-                        else
-                        {
-                            builder.AddActionButton(command.Style, command.DisplayName, command.CommandCustomId);
-                        }
-                    }
-
-                    create.Components = builder.Build();
-
-                    signMessage.MessageChannel?.CreateMessage(Client, create).Then(discordMessage => { _pluginData.AddLog(discordMessage.Id, log); });
-                }
-            }
-            finally
-            {
-                _log = null;
-            }
+            data.Add(PlaceholderDataKeys.SignArtistUrl, signage.Url);
         }
         
-        private DiscordEmbed BuildEmbed(IPlayer player, EmbedConfig embed, BaseImageUpdate update)
+        for (int index = 0; index < _pluginConfig.SignMessages.Count; index++)
         {
-            DiscordEmbedBuilder builder = new DiscordEmbedBuilder();
-            if (!string.IsNullOrEmpty(embed.Title))
-            {
-                builder.AddTitle(ParsePlaceholders(player, embed.Title));
-            }
+            SignMessage signMessage = _pluginConfig.SignMessages[index];
+            DiscordMessageTemplate message = _templates.GetGlobalTemplate(this, signMessage.MessageId);
+            MessageCreate create = message.ToMessage<MessageCreate>(data);
+            data.Add(PlaceholderDataKeys.MessageId, signMessage.MessageId);
 
-            if (!string.IsNullOrEmpty(embed.Description))
-            {
-                builder.AddDescription(ParsePlaceholders(player, embed.Description));
-            }
-            
-            if (!string.IsNullOrEmpty(embed.Url))
-            {
-                builder.AddUrl(ParsePlaceholders(player, embed.Url));
-            }
+            create.AddAttachment("image.png", update.GetImage(), "image/png", $"{update.DisplayName} Updated {update.Entity.ShortPrefabName} @{update.Entity.transform.position} On {DateTime.Now:f}");
 
-            if (!string.IsNullOrEmpty(embed.Image))
+            if (signMessage.Buttons.Count != 0)
             {
-                builder.AddImage(ParsePlaceholders(player, embed.Image));
-            }
-            
-            if (!string.IsNullOrEmpty(embed.Thumbnail))
-            {
-                builder.AddThumbnail(ParsePlaceholders(player, embed.Thumbnail));
-            }
-            
-            if (!string.IsNullOrEmpty(embed.Color))
-            {
-                builder.AddColor(embed.Color);
-            }
-            
-            if (embed.Timestamp)
-            {
-                builder.AddNowTimestamp();
-            }
-
-            if (embed.Footer.Enabled)
-            {
-                if (string.IsNullOrEmpty(embed.Footer.Text) &&
-                    string.IsNullOrEmpty(embed.Footer.IconUrl))
+                if (signMessage.UseActionButton)
                 {
-                    AddPluginInfoFooter(builder);
+                    create.Components = new List<ActionRowComponent>
+                    {
+                        new()
+                        {
+                            Components = { _buttonTemplates.GetGlobalTemplate(this, TemplateKeys.Action.Button).ToComponent(data) }
+                        }
+                    };
                 }
                 else
                 {
-                    string text = ParsePlaceholders(player, embed.Footer.Text);
-                    string footerUrl = ParsePlaceholders(player, embed.Footer.IconUrl);
-                    builder.AddFooter(text, footerUrl);
+                    create.Components = CreateButtons(signMessage, data, encodedState);
                 }
-            }
-
-            foreach (EmbedFieldConfig field in embed.Fields)
-            {
-                builder.AddField(ParsePlaceholders(player, field.Title), ParsePlaceholders(player, field.Value), field.Inline);
             }
             
-            if (update is SignageUpdate)
+            signMessage.MessageChannel?.CreateMessage(Client, create);
+        }
+    }
+
+    private List<ActionRowComponent> CreateButtons(SignMessage signMessage, PlaceholderData data, StateKey encodedState)
+    {
+        MessageComponentBuilder builder = new();
+        for (int i = 0; i < signMessage.Buttons.Count; i++)
+        {
+            ButtonId buttonId = signMessage.Buttons[i];
+            ImageButton command = _imageButtons[buttonId];
+            if (command.Commands.Count == 0)
             {
-                SignageUpdate signage = (SignageUpdate)update;
-                if (!string.IsNullOrEmpty(signage.Url))
-                {
-                    builder.AddField(ParsePlaceholders(player, Lang(LangKeys.SignArtistTitle)), ParsePlaceholders(player, Lang(LangKeys.SignArtistValue)), true);
-                }
+                continue;
             }
 
-            return builder.Build();
+            if (command.Style == ButtonStyle.Link)
+            {
+                builder.AddLinkButton(command.DisplayName, _placeholders.ProcessPlaceholders(command.Commands[0], data));
+            }
+            else
+            {
+                builder.AddActionButton(command.Style, command.DisplayName, BuildCustomId(CommandPrefix, signMessage.MessageId, buttonId, encodedState));
+            }
         }
 
-        private const string OwnerIcon = "https://i.postimg.cc/cLGQsP1G/Sign-3.png";
+        return builder.Build();
+    }
 
-        private void AddPluginInfoFooter(DiscordEmbedBuilder embed)
-        {
-            embed.AddFooter($"{Title} V{Version} by {Author}", OwnerIcon);
-        }
+    private string BuildCustomId(string command, IDiscordKey messageId, ButtonId? buttonId, IDiscordKey encodedState)
+    {
+        return $"{command} {messageId.ToString()} {(buttonId.HasValue ? buttonId.Value.Id : "_")} {encodedState}";
     }
 }

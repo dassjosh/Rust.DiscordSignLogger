@@ -1,29 +1,22 @@
 //Reference: System.Drawing
-using Facepunch;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Oxide.Core;
 using Oxide.Core.Libraries.Covalence;
 using Oxide.Core.Plugins;
-using Oxide.Ext.Discord;
 using Oxide.Ext.Discord.Attributes;
 using Oxide.Ext.Discord.Builders;
-using Oxide.Ext.Discord.Builders.MessageComponents;
+using Oxide.Ext.Discord.Cache;
 using Oxide.Ext.Discord.Clients;
 using Oxide.Ext.Discord.Connections;
 using Oxide.Ext.Discord.Constants;
 using Oxide.Ext.Discord.Entities;
-using Oxide.Ext.Discord.Entities.Channels;
-using Oxide.Ext.Discord.Entities.Gateway;
-using Oxide.Ext.Discord.Entities.Guilds;
-using Oxide.Ext.Discord.Entities.Interactions;
-using Oxide.Ext.Discord.Entities.Interactions.MessageComponents;
-using Oxide.Ext.Discord.Entities.Interactions.Response;
-using Oxide.Ext.Discord.Entities.Messages;
-using Oxide.Ext.Discord.Entities.Messages.AllowedMentions;
-using Oxide.Ext.Discord.Entities.Messages.Embeds;
+using Oxide.Ext.Discord.Extensions;
 using Oxide.Ext.Discord.Interfaces;
+using Oxide.Ext.Discord.Libraries;
 using Oxide.Ext.Discord.Logging;
+using Oxide.Ext.Discord.Types;
+using ProtoBuf;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -37,12 +30,12 @@ using Color = System.Drawing.Color;
 using Graphics = System.Drawing.Graphics;
 using Star = ProtoBuf.PatternFirework.Star;
 
-//DiscordSignLogger created with PluginMerge v(1.0.5.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
+//DiscordSignLogger created with PluginMerge v(1.0.8.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
 namespace Oxide.Plugins
 {
-    [Info("Discord Sign Logger", "MJSU", "1.0.10")]
+    [Info("Discord Sign Logger", "MJSU", "3.0.0")]
     [Description("Logs Sign / Firework Changes To Discord")]
-    public partial class DiscordSignLogger : RustPlugin, IDiscordPlugin
+    public partial class DiscordSignLogger : RustPlugin, IDiscordPlugin, IDiscordPool
     {
         #region Plugins\DiscordSignLogger.Fields.cs
         #pragma warning disable CS0649
@@ -57,32 +50,36 @@ namespace Oxide.Plugins
         
         private PluginConfig _pluginConfig;
         private PluginData _pluginData;
-        private PluginButtonData _buttonData;
         
-        public const string CommandPrefix = "DSL ";
+        private const string CommandPrefix = "DSL_CMD";
+        private const string ActionPrefix = "DSL_ACTION";
+        private const string ModalPrefix = "DSL_MODAL";
+        private const string PlayerMessage = "PLAYER_MESSAGE";
+        private const string ServerMessage = "SERVER_MESSAGE";
         private const string AccentColor = "#de8732";
         
-        private readonly MessageCreate _actionMessage = new MessageCreate
+        private readonly MessageCreate _actionMessage = new()
         {
-            AllowedMention = new AllowedMention
-            {
-                AllowedTypes = new List<AllowedMentionTypes>(),
-                Roles = new List<Snowflake>(),
-                Users = new List<Snowflake>()
-            }
+            AllowedMentions = AllowedMentions.None
         };
         
-        private readonly StringBuilder _sb = new StringBuilder();
-        private readonly StringBuilder _actions = new StringBuilder();
-        public readonly Hash<UnityEngine.Color, Brush> FireworkBrushes = new Hash<UnityEngine.Color, Brush>();
-        private readonly Hash<NetworkableId, SignageUpdate> _updates = new  Hash<NetworkableId, SignageUpdate>();
-        private readonly Hash<string, string> _prefabNameLookup = new Hash<string, string>();
+        public DiscordPluginPool Pool { get; set; }
+        
+        private readonly StringBuilder _sb = new();
+        public readonly Hash<UnityEngine.Color, Brush> FireworkBrushes = new();
+        private readonly Hash<NetworkableId, SignageUpdate> _updates = new();
+        private readonly Hash<uint, string> _prefabNameCache = new();
+        private readonly Hash<int, string> _itemNameCache = new();
+        private readonly Hash<TemplateKey, SignMessage> _signMessages = new();
+        private readonly Hash<ButtonId, ImageButton> _imageButtons = new();
         
         private DiscordChannel _actionChannel;
         
-        private ILogEvent _log;
-        private DiscordInteraction _interaction;
-        private GuildMember _activeMember;
+        private readonly DiscordPlaceholders _placeholders = GetLibrary<DiscordPlaceholders>();
+        private readonly DiscordMessageTemplates _templates = GetLibrary<DiscordMessageTemplates>();
+        private readonly DiscordButtonTemplates _buttonTemplates = GetLibrary<DiscordButtonTemplates>();
+        private readonly DiscordCommandLocalizations _local = GetLibrary<DiscordCommandLocalizations>();
+        
         public int FireworkImageSize;
         public int FireworkHalfImageSize;
         public int FireworkCircleSize;
@@ -103,25 +100,36 @@ namespace Oxide.Plugins
             _pluginConfig.ReplaceImage.TextColor = _pluginConfig.ReplaceImage.TextColor.Replace("#", "");
             _pluginConfig.ReplaceImage.BodyColor = _pluginConfig.ReplaceImage.BodyColor.Replace("#", "");
             
-            _pluginData = Interface.Oxide.DataFileSystem.ReadObject<PluginData>(Name);
-            _buttonData = Interface.Oxide.DataFileSystem.ReadObject<PluginButtonData>(Name + "_Buttons");
-            
-            List<int> activeHash = new List<int>();
+            HashSet<string> ids = new();
             foreach (SignMessage message in _pluginConfig.SignMessages)
             {
-                foreach (ImageMessageButtonCommand command in message.Commands)
+                if (ids.Add(message.MessageId.Name))
                 {
-                    command.SetCommandId();
-                    activeHash.Add(command.CommandId);
-                    _buttonData.AddOrUpdate(command);
+                    _signMessages[message.MessageId] = message;
+                }
+                else
+                {
+                    PrintWarning($"Duplicate Sign Message ID: '{message.MessageId.Name}'. Please check your config and correct the duplicate Sign Message ID's");
                 }
             }
             
-            _buttonData.CleanupExpired(activeHash, _pluginConfig.DeleteButtonCacheAfter);
-            SaveButtonData();
+            ids.Clear();
+            foreach (ImageButton button in _pluginConfig.Buttons)
+            {
+                if (ids.Add(button.ButtonId.Id))
+                {
+                    _imageButtons[button.ButtonId] = button;
+                }
+                else
+                {
+                    PrintWarning($"Duplicate Button ID: '{button.ButtonId.Id}'. Please check your config and correct the duplicate Image Button ID's");
+                }
+            }
             
-            _pluginData.CleanupExpired(_pluginConfig.DeleteLogDataAfter);
-            SaveData();
+            _pluginData = Interface.Oxide.DataFileSystem.ReadObject<PluginData>(Name);
+            
+            RegisterPlaceholders();
+            RegisterTemplates();
         }
         
         protected override void LoadDefaultConfig()
@@ -141,8 +149,8 @@ namespace Oxide.Plugins
         {
             config.FireworkSettings = new FireworkSettings(config.FireworkSettings);
             config.ReplaceImage = new ReplaceImageSettings(config.ReplaceImage);
-            config.ActionLog = new ActionLogConfig(config.ActionLog);
-            config.SignMessages = config.SignMessages ?? new List<SignMessage>();
+            config.SignMessages ??= new List<SignMessage>();
+            config.PluginSettings = new PluginSettings(config.PluginSettings);
             
             if (config.SignMessages.Count == 0)
             {
@@ -154,6 +162,87 @@ namespace Oxide.Plugins
                 {
                     config.SignMessages[index] = new SignMessage(config.SignMessages[index]);
                 }
+            }
+            
+            config.Buttons ??= new List<ImageButton>
+            {
+                new()
+                {
+                    ButtonId = new ButtonId("ERASE"),
+                    DisplayName = "Erase",
+                    Style = ButtonStyle.Primary,
+                    Commands = new List<string> { $"dsl.erase {PlaceholderKeys.EntityId} {PlaceholderKeys.TextureIndex}" },
+                    PlayerMessage = "An admin erased your sign for being inappropriate",
+                    ServerMessage = string.Empty,
+                    RequirePermissions = false,
+                    ConfirmModal = false,
+                    AllowedRoles = new List<Snowflake>(),
+                    AllowedGroups = new List<string>()
+                },
+                new()
+                {
+                    ButtonId = new ButtonId("SIGN_BLOCK_24_HOURS"),
+                    DisplayName = "Sign Block (24 Hours)",
+                    Style = ButtonStyle.Primary,
+                    Commands = new List<string> { "dsl.signblock {player.id} 86400" },
+                    PlayerMessage = "You have been banned from updating signs for 24 hours.",
+                    ServerMessage = string.Empty,
+                    RequirePermissions = true,
+                    ConfirmModal = false,
+                    AllowedRoles = new List<Snowflake>(),
+                    AllowedGroups = new List<string>()
+                },
+                new()
+                {
+                    ButtonId = new ButtonId("KILL_ENTITY"),
+                    DisplayName = "Kill Entity",
+                    Style = ButtonStyle.Secondary,
+                    Commands = new List<string> { $"entid kill {PlaceholderKeys.EntityId}" },
+                    PlayerMessage = "An admin killed your sign for being inappropriate",
+                    ServerMessage = string.Empty,
+                    RequirePermissions = true,
+                    ConfirmModal = false,
+                    AllowedRoles = new List<Snowflake>(),
+                    AllowedGroups = new List<string>()
+                },
+                new()
+                {
+                    ButtonId = new ButtonId("KICK_PLAYER"),
+                    DisplayName = "Kick Player",
+                    Style = ButtonStyle.Danger,
+                    Commands = new List<string> {
+                        $"kick {DefaultKeys.Player.Id} \"{PlaceholderKeys.PlayerMessage}\"",
+                        $"dsl.erase {PlaceholderKeys.EntityId} {PlaceholderKeys.TextureIndex}"
+                    },
+                    PlayerMessage = string.Empty,
+                    ServerMessage = string.Empty,
+                    RequirePermissions = true,
+                    ConfirmModal = true,
+                    AllowedRoles = new List<Snowflake>(),
+                    AllowedGroups = new List<string>()
+                },
+                new()
+                {
+                    ButtonId = new ButtonId("BAN_PLAYER"),
+                    DisplayName = "Ban Player",
+                    Style = ButtonStyle.Danger,
+                    Commands = new List<string>
+                    {
+                        $"ban {DefaultKeys.Player.Id} \"{PlaceholderKeys.PlayerMessage}\"",
+                        $"dsl.erase {PlaceholderKeys.EntityId} {PlaceholderKeys.TextureIndex}"
+                    },
+                    PlayerMessage = string.Empty,
+                    ServerMessage = string.Empty,
+                    RequirePermissions = true,
+                    ConfirmModal = true,
+                    AllowedRoles = new List<Snowflake>(),
+                    AllowedGroups = new List<string>()
+                }
+            };
+            
+            for (int index = 0; index < config.Buttons.Count; index++)
+            {
+                config.Buttons[index] = new ImageButton(config.Buttons[index]);
             }
             
             return config;
@@ -171,52 +260,29 @@ namespace Oxide.Plugins
                 return;
             }
             
-            if (PlaceholderAPI == null || !PlaceholderAPI.IsLoaded)
+            if (SignArtist is { IsLoaded: true })
             {
-                PrintError("Missing plugin dependency PlaceholderAPI: https://umod.org/plugins/placeholder-api");
-                return;
-            }
-            
-            if(PlaceholderAPI.Version < new VersionNumber(2, 2, 0))
-            {
-                PrintError("Placeholder API plugin must be version 2.2.0 or higher");
-                return;
-            }
-            
-            if (SignArtist != null && SignArtist.IsLoaded && SignArtist.Version < new VersionNumber(1, 4, 0))
-            {
-                PrintWarning("Sign Artist version is outdated and may not function correctly. Please update SignArtist @ https://umod.org/plugins/sign-artist to version 1.4.0 or higher");
-            }
-            
-            if (RustTranslationAPI == null || !RustTranslationAPI.IsLoaded)
-            {
-                foreach (ItemDefinition def in ItemManager.itemList)
+                if (SignArtist.Version < new VersionNumber(1, 4, 0))
                 {
-                    BaseEntity entity = def.GetComponent<ItemModDeployable>()?.entityPrefab.Get().GetComponent<BaseEntity>();
-                    if (entity is ISignage || entity is PatternFirework)
-                    {
-                        _prefabNameLookup[entity.ShortPrefabName] = def.displayName.translated;
-                    }
+                    PrintWarning("Sign Artist version is outdated and may not function correctly. Please update SignArtist @ https://umod.org/plugins/sign-artist to version 1.4.0 or higher");
                 }
             }
+            else
+            {
+                Unsubscribe(nameof(OnPlayerCommand));
+            }
             
-            Client.Connect(new BotConnection()
+            Client.Connect(new BotConnection
             {
                 Intents = GatewayIntents.Guilds,
                 ApiToken = _pluginConfig.DiscordApiKey,
                 LogLevel = _pluginConfig.ExtensionDebugging
             });
-            
-            if (SignArtist == null || !SignArtist.IsLoaded)
-            {
-                Unsubscribe(nameof(OnPlayerCommand));
-            }
         }
         
         private void Unload()
         {
             SaveData();
-            SaveButtonData();
             Instance = null;
         }
         #endregion
@@ -224,7 +290,8 @@ namespace Oxide.Plugins
         #region Plugins\DiscordSignLogger.CoreHooks.cs
         private void OnImagePost(BasePlayer player, string url, bool raw, ISignage signage, uint textureIndex)
         {
-            _updates[signage.NetworkID] = new SignageUpdate(player, signage, _pluginConfig.SignMessages, textureIndex, player == null, url);
+            bool ignore = player == null || !_pluginConfig.PluginSettings.SignArtist.ShouldLog(url);
+            _updates[signage.NetworkID] = new SignageUpdate(player, signage, (byte)textureIndex, ignore, url);
         }
         
         private void OnSignUpdated(ISignage signage, BasePlayer player, int textureIndex = 0)
@@ -240,7 +307,7 @@ namespace Oxide.Plugins
                 return;
             }
             
-            SignageUpdate update = _updates[signage.NetworkID] ?? new SignageUpdate(player, signage, _pluginConfig.SignMessages, (uint)textureIndex, player == null);
+            SignageUpdate update = _updates[signage.NetworkID] ?? new SignageUpdate(player, signage, (byte)textureIndex, player == null);
             _updates.Remove(signage.NetworkID);
             if (update.IgnoreMessage)
             {
@@ -252,23 +319,27 @@ namespace Oxide.Plugins
         
         private void OnItemPainted(PaintedItemStorageEntity entity, Item item, BasePlayer player, byte[] image)
         {
-            if (entity._currentImageCrc == 0)
+            if (entity._currentImageCrc != 0)
             {
-                return;
+                PaintedItemUpdate update = new(player, entity, item, image, false);
+                SendDiscordMessage(update);
             }
-            
-            PaintedItemUpdate update = new PaintedItemUpdate(player, entity, item, image, _pluginConfig.SignMessages, false);
-            SendDiscordMessage(update);
         }
         
         private void OnFireworkDesignChanged(PatternFirework firework, ProtoBuf.PatternFirework.Design design, BasePlayer player)
         {
-            if (design?.stars == null || design.stars.Count == 0)
+            if (design?.stars != null && design.stars.Count != 0)
             {
-                return;
+                SendDiscordMessage(new FireworkUpdate(player, firework));
             }
-            
-            SendDiscordMessage(new FireworkUpdate(player, firework, _pluginConfig.SignMessages));
+        }
+        
+        private void OnCopyInfoToSign(SignContent content, ISignage sign, IUGCBrowserEntity browser)
+        {
+            BaseEntity entity = (BaseEntity)sign;
+            BasePlayer player = BasePlayer.FindByID(entity.OwnerID);
+            SignageUpdate update = new(player, sign, 0);
+            SendDiscordMessage(update);
         }
         
         private object CanUpdateSign(BasePlayer player, BaseEntity entity)
@@ -278,7 +349,10 @@ namespace Oxide.Plugins
                 return null;
             }
             
-            Chat(player, LangKeys.BlockedMessage, GetFormattedDurationTime(_pluginData.GetRemainingBan(player)));
+            PlaceholderData data = GetPlaceholderData();
+            data.AddTimeSpan(_pluginData.GetRemainingBan(player));
+            
+            Chat(player, LangKeys.BlockedMessage, data);
             
             //Client side the sign will still be updated if we block it here. We destroy the entity client side to force a redraw of the image.
             NextTick(() =>
@@ -297,7 +371,10 @@ namespace Oxide.Plugins
                 return null;
             }
             
-            Chat(player, LangKeys.BlockedMessage, player, GetFormattedDurationTime(_pluginData.GetRemainingBan(player), player));
+            PlaceholderData data = GetPlaceholderData();
+            data.AddTimeSpan(_pluginData.GetRemainingBan(player));
+            
+            Chat(player, LangKeys.BlockedMessage, data);
             return _true;
         }
         
@@ -313,8 +390,10 @@ namespace Oxide.Plugins
                 return null;
             }
             
-            Chat(player, LangKeys.BlockedMessage, GetFormattedDurationTime(_pluginData.GetRemainingBan(player)));
+            PlaceholderData data = GetPlaceholderData();
+            data.AddTimeSpan(_pluginData.GetRemainingBan(player));
             
+            Chat(player, LangKeys.BlockedMessage, data);
             return _true;
         }
         
@@ -326,6 +405,7 @@ namespace Oxide.Plugins
             Unsubscribe(nameof(CanUpdateSign));
             Unsubscribe(nameof(OnFireworkDesignChange));
             Unsubscribe(nameof(OnPlayerCommand));
+            Unsubscribe(nameof(OnCopyInfoToSign));
         }
         
         private void SubscribeAll()
@@ -334,8 +414,9 @@ namespace Oxide.Plugins
             Subscribe(nameof(OnFireworkDesignChanged));
             Subscribe(nameof(CanUpdateSign));
             Subscribe(nameof(OnFireworkDesignChange));
+            Subscribe(nameof(OnCopyInfoToSign));
             
-            if (SignArtist != null && SignArtist.IsLoaded)
+            if (SignArtist is { IsLoaded: true })
             {
                 Subscribe(nameof(OnPlayerCommand));
                 Subscribe(nameof(OnImagePost));
@@ -352,7 +433,7 @@ namespace Oxide.Plugins
             {
                 if (message.MessageChannel == null && message.ChannelId.IsValid())
                 {
-                    DiscordChannel channel = GetChannel(guild, message.ChannelId);
+                    DiscordChannel channel = guild.GetChannel(message.ChannelId);
                     if (channel != null)
                     {
                         message.MessageChannel = channel;
@@ -361,9 +442,9 @@ namespace Oxide.Plugins
                 }
             }
             
-            if (_pluginConfig.ActionLog.ChannelId.IsValid())
+            if (_pluginConfig.ActionLogChannel.IsValid())
             {
-                DiscordChannel channel = GetChannel(guild, _pluginConfig.ActionLog.ChannelId);
+                DiscordChannel channel = guild.GetChannel(_pluginConfig.ActionLogChannel);
                 if (channel != null)
                 {
                     _actionChannel = channel;
@@ -374,170 +455,82 @@ namespace Oxide.Plugins
             {
                 SubscribeAll();
                 Puts($"{Title} Ready");
-            }
-        }
-        
-        [HookMethod(DiscordExtHooks.OnDiscordInteractionCreated)]
-        private void OnDiscordInteractionCreated(DiscordInteraction interaction)
-        {
-            switch (interaction.Type)
-            {
-                case InteractionType.MessageComponent:
-                HandleMessageComponentCommand(interaction);
-                break;
+                RegisterApplicationCommands();
             }
         }
         #endregion
 
-        #region Plugins\DiscordSignLogger.DiscordInteractions.cs
-        private void HandleMessageComponentCommand(DiscordInteraction interaction)
+        #region Plugins\DiscordSignLogger.DiscordHelpers.cs
+        public void RunCommand(DiscordInteraction interaction, SignUpdateState state, ImageButton button, string playerMessage, string serverMessage)
         {
-            if (!interaction.Data.ComponentType.HasValue || interaction.Data.ComponentType.Value != MessageComponentType.Button)
-            {
-                return;
-            }
+            using PlaceholderData data = GetPlaceholderData(state, interaction)
+            .AddGuild(Client, interaction.GuildId)
+            .Add(PlaceholderDataKeys.PlayerMessage, playerMessage)
+            .Add(PlaceholderDataKeys.ServerMessage, serverMessage);
             
-            string buttonId = interaction.Data.CustomId;
-            if (!buttonId.StartsWith(CommandPrefix))
-            {
-                return;
-            }
+            data.ManualPool();
             
-            SignUpdateLog log = _pluginData.GetLog(interaction.Message.Id);
-            if (log == null)
+            _sb.Clear();
+            foreach (string buttonCommand in button.Commands)
             {
-                DisableAllButtons(interaction.Message);
-                SendComponentUpdateResponse(interaction);
-                CreateResponse(interaction,  Lang(LangKeys.DeletedLog, null, _pluginConfig.DeleteLogDataAfter));
-                return;
-            }
-            
-            buttonId = buttonId.Replace(CommandPrefix, string.Empty);
-            int hash;
-            if (!int.TryParse(buttonId, out hash))
-            {
-                DisableAllButtons(interaction.Message);
-                SendComponentUpdateResponse(interaction);
-                CreateResponse(interaction, Lang(LangKeys.DeletedLog, null, _pluginConfig.DeleteButtonCacheAfter));
-                return;
-            }
-            
-            ImageMessageButtonCommand command = _buttonData.Get(hash);
-            if (command == null)
-            {
-                DisableAllButtons(interaction.Message);
-                SendComponentUpdateResponse(interaction);
-                CreateResponse(interaction, Lang(LangKeys.DeletedLog, null, _pluginConfig.DeleteButtonCacheAfter));
-                return;
-            }
-            
-            RunCommand(interaction, log, command);
-        }
-        
-        public void RunCommand(DiscordInteraction interaction, SignUpdateLog data, ImageMessageButtonCommand button)
-        {
-            try
-            {
-                _log = data;
-                _activeMember = interaction.Member;
-                _interaction = interaction;
-                
-                if (button.RequirePermissions && !UserHasButtonPermission(interaction, button))
-                {
-                    CreateResponse(interaction, Lang(LangKeys.NoPermission));
-                    return;
-                }
-                
-                IPlayer logPlayer = data.Player;
-                
-                _actions.Clear();
-                
-                foreach (string buttonCommand in button.Commands)
-                {
-                    _sb.Clear();
-                    _sb.Append(buttonCommand);
-                    ParsePlaceholders(logPlayer, _sb);
-                    string serverCommand = _sb.ToString();
-                    covalence.Server.Command(serverCommand);
-                    
-                    if (_actionChannel != null)
-                    {
-                        if (_actions.Length != 0)
-                        {
-                            _actions.AppendLine();
-                        }
-                        _actions.Append(Lang(LangKeys.ActionMessage));
-                        ParsePlaceholders(logPlayer, _actions);
-                        _actions.Replace("{dsl.command}", serverCommand);
-                    }
-                }
+                string command = _placeholders.ProcessPlaceholders(buttonCommand, data);
+                covalence.Server.Command(command);
                 
                 if (_actionChannel != null)
                 {
-                    _actionMessage.Content = _actions.ToString();
-                    if (_pluginConfig.ActionLog.Buttons.Count != 0)
-                    {
-                        MessageComponentBuilder builder = new MessageComponentBuilder();
-                        for (int index = 0; index < _pluginConfig.ActionLog.Buttons.Count; index++)
-                        {
-                            ActionMessageButtonCommand actionButton = _pluginConfig.ActionLog.Buttons[index];
-                            if (actionButton.Commands.Count == 0)
-                            {
-                                continue;
-                            }
-                            
-                            if (actionButton.Style == ButtonStyle.Link)
-                            {
-                                builder.AddLinkButton(actionButton.DisplayName, ParsePlaceholders(logPlayer, actionButton.Commands[0]));
-                            }
-                        }
-                        
-                        _actionMessage.Components = builder.Build();
-                    }
-                    
-                    _actionChannel.CreateMessage(Client, _actionMessage);
+                    _sb.AppendLine(command);
                 }
-                
-                if (!string.IsNullOrEmpty(button.PlayerMessage))
-                {
-                    BasePlayer player = logPlayer.Object as BasePlayer;
-                    if (player != null && player.IsConnected)
-                    {
-                        Chat(player, button.PlayerMessage);
-                    }
-                }
-                
-                if (!string.IsNullOrEmpty(button.ServerMessage))
-                {
-                    _sb.Clear();
-                    _sb.Append(button.ServerMessage);
-                    ParsePlaceholders(logPlayer, _sb);
-                    covalence.Server.Broadcast(_sb.ToString());
-                }
-                
-                if (_pluginConfig.DisableDiscordButton)
-                {
-                    DisableButton(interaction.Message, interaction.Data.CustomId);
-                }
-                
-                interaction.CreateResponse(Client, new InteractionResponse
-                {
-                    Type = InteractionResponseType.UpdateMessage,
-                    Data = new InteractionCallbackData
-                    {
-                        Components = interaction.Message.Components
-                    }
-                });
             }
-            finally
+            
+            if (_actionChannel != null)
             {
-                _log = null;
-                _activeMember = null;
-                _interaction = null;
+                string command = _sb.ToString();
+                data.Add(PlaceholderDataKeys.Command, command);
+                _actionChannel.CreateGlobalTemplateMessage(Client, TemplateKeys.Action.Message, null, data);
             }
+            
+            if (!string.IsNullOrEmpty(playerMessage))
+            {
+                BasePlayer player = state.Player.Object as BasePlayer;
+                if (player != null && player.IsConnected)
+                {
+                    string message = _placeholders.ProcessPlaceholders(playerMessage, data);
+                    Chat(player, message);
+                }
+            }
+            
+            if (!string.IsNullOrEmpty(serverMessage))
+            {
+                string message = _placeholders.ProcessPlaceholders(serverMessage, data);
+                covalence.Server.Broadcast(message);
+            }
+            
+            if (_pluginConfig.DisableDiscordButton)
+            {
+                DisableButton(interaction.Message, interaction.Data.CustomId);
+            }
+            
+            interaction.CreateResponse(Client, new InteractionResponse
+            {
+                Type = InteractionResponseType.UpdateMessage,
+                Data = new InteractionCallbackData
+                {
+                    Components = interaction.Message.Components
+                }
+            });
         }
         
-        public bool UserHasButtonPermission(DiscordInteraction interaction, ImageMessageButtonCommand button)
+        public void ShowConfirmationModal(DiscordInteraction interaction, SignUpdateState state, ImageButton button, TemplateKey messageId, ButtonId buttonId)
+        {
+            InteractionModalBuilder builder = new(interaction);
+            builder.AddModalCustomId(BuildCustomId(ModalPrefix, messageId, buttonId, state.Serialize()));
+            builder.AddModalTitle(button.DisplayName);
+            builder.AddInputText(PlayerMessage, "Player Message", InputTextStyles.Paragraph, button.PlayerMessage, false);
+            builder.AddInputText(ServerMessage, "Server Message", InputTextStyles.Paragraph, button.ServerMessage, false);
+            interaction.CreateResponse(Client, builder);
+        }
+        
+        public bool UserHasButtonPermission(DiscordInteraction interaction, ImageButton button)
         {
             for (int index = 0; index < button.AllowedRoles.Count; index++)
             {
@@ -549,16 +542,40 @@ namespace Oxide.Plugins
             }
             
             IPlayer player = interaction.Member.User.Player;
-            for (int index = 0; index < button.AllowedGroups.Count; index++)
+            if (player != null)
             {
-                string group = button.AllowedGroups[index];
-                if (permission.UserHasGroup(player.Id, group))
+                for (int index = 0; index < button.AllowedGroups.Count; index++)
                 {
-                    return true;
+                    string group = button.AllowedGroups[index];
+                    if (permission.UserHasGroup(player.Id, group))
+                    {
+                        return true;
+                    }
                 }
             }
             
             return false;
+        }
+        
+        public bool TryParseCommand(string command, out TemplateKey messageId, out ButtonId buttonId, out SignUpdateState state)
+        {
+            messageId = default;
+            buttonId = default;
+            state = null;
+            
+            ReadOnlySpan<char> span = command.AsSpan();
+            ReadOnlySpan<char> token = " ";
+            
+            //Command Prefix can be ignored
+            if (!span.TryParseNextString(token, out span, out ReadOnlySpan<char> _)) return false;
+            if (!span.TryParseNextString(token, out span, out ReadOnlySpan<char> messageIdString)) return false;
+            if (!span.TryParseNextString(token, out span, out ReadOnlySpan<char> buttonIdString)) return false;
+            if (!span.TryParseNextString(token, out span, out ReadOnlySpan<char> stateString)) return false;
+            
+            messageId = new TemplateKey(messageIdString.ToString());
+            buttonId = new ButtonId(buttonIdString.ToString());
+            state = SignUpdateState.Deserialize(stateString);
+            return true;
         }
         
         public void DisableButton(DiscordMessage message, string id)
@@ -569,14 +586,10 @@ namespace Oxide.Plugins
                 for (int i = 0; i < row.Components.Count; i++)
                 {
                     BaseComponent component = row.Components[i];
-                    if (component is ButtonComponent)
+                    if (component is ButtonComponent button && button.CustomId == id)
                     {
-                        ButtonComponent button = (ButtonComponent)component;
-                        if (button.CustomId == id)
-                        {
-                            button.Disabled = true;
-                            return;
-                        }
+                        button.Disabled = true;
+                        return;
                     }
                 }
             }
@@ -590,16 +603,22 @@ namespace Oxide.Plugins
                 for (int i = 0; i < row.Components.Count; i++)
                 {
                     BaseComponent component = row.Components[i];
-                    if (component is ButtonComponent)
+                    if (component is ButtonComponent button)
                     {
-                        ButtonComponent button = (ButtonComponent)component;
                         button.Disabled = true;
                     }
                 }
             }
         }
         
-        private void SendComponentUpdateResponse(DiscordInteraction interaction)
+        public void SendErrorResponse(DiscordInteraction interaction, TemplateKey template, PlaceholderData data)
+        {
+            DisableAllButtons(interaction.Message);
+            SendComponentUpdateResponse(interaction);
+            SendFollowupResponse(interaction, template, data);
+        }
+        
+        public void SendComponentUpdateResponse(DiscordInteraction interaction)
         {
             interaction.CreateResponse(Client, new InteractionResponse
             {
@@ -611,154 +630,107 @@ namespace Oxide.Plugins
             });
         }
         
-        public void CreateResponse(DiscordInteraction interaction, string response)
+        public void SendTemplateResponse(DiscordInteraction interaction, TemplateKey templateName, PlaceholderData data)
         {
-            interaction.CreateResponse(Client, new InteractionResponse
+            interaction.CreateTemplateResponse(Client, InteractionResponseType.ChannelMessageWithSource, templateName, null, data);
+        }
+        
+        public void SendFollowupResponse(DiscordInteraction interaction, TemplateKey templateName, PlaceholderData data)
+        {
+            interaction.CreateFollowUpTemplateResponse(Client, templateName, null, data);
+        }
+        
+        public IEnumerable<IPlayer> GetBannedPlayers()
+        {
+            foreach (ulong key in _pluginData.SignBannedUsers.Keys)
             {
-                Type = InteractionResponseType.ChannelMessageWithSource,
-                Data = new InteractionCallbackData
+                IPlayer player = FindPlayerById(StringCache<ulong>.Instance.ToString(key));
+                if (player != null)
                 {
-                    Content = response,
-                    Flags = MessageFlags.Ephemeral
+                    yield return player;
                 }
-            });
+            }
         }
         #endregion
 
         #region Plugins\DiscordSignLogger.DiscordMethods.cs
         public void SendDiscordMessage(BaseImageUpdate update)
         {
-            try
+            SignUpdateState state = new(update);
+            
+            StateKey encodedState = state.Serialize();
+            
+            using PlaceholderData data = GetPlaceholderData(state);
+            data.ManualPool();
+            data.AddPlayer(state.Player)
+            .Add(PlaceholderDataKeys.State, state)
+            .Add(PlaceholderDataKeys.Owner, state.Owner)
+            .Add(PlaceholderDataKeys.MessageState, encodedState);
+            
+            if (update is SignageUpdate signage)
             {
-                _log = update;
-                SignUpdateLog log = new SignUpdateLog(update);
-                for (int index = 0; index < update.Messages.Count; index++)
-                {
-                    SignMessage signMessage = update.Messages[index];
-                    MessageConfig message = signMessage.MessageConfig;
-                    
-                    MessageCreate create = new MessageCreate();
-                    if (!string.IsNullOrEmpty(message.Content))
-                    {
-                        create.Content = ParsePlaceholders(null, message.Content);
-                    }
-                    
-                    if (message.Embeds.Count != 0)
-                    {
-                        create.Embeds = new List<DiscordEmbed>(message.Embeds.Count);
-                        foreach (EmbedConfig config in message.Embeds)
-                        {
-                            create.Embeds.Add(BuildEmbed(update.Player, config, update));
-                        }
-                    }
-                    
-                    create.AddAttachment("image.png", update.GetImage(), "image/png", $"{update.DisplayName} Updated {update.Entity.ShortPrefabName} @{update.Entity.transform.position} On {DateTime.Now:f}");
-                    
-                    MessageComponentBuilder builder = new MessageComponentBuilder();
-                    for (int i = 0; i < signMessage.Commands.Count; i++)
-                    {
-                        ImageMessageButtonCommand command = signMessage.Commands[i];
-                        if (command.Commands.Count == 0)
-                        {
-                            continue;
-                        }
-                        
-                        if (command.Style == ButtonStyle.Link)
-                        {
-                            builder.AddLinkButton(command.DisplayName, ParsePlaceholders(update.Player, command.Commands[0]));
-                        }
-                        else
-                        {
-                            builder.AddActionButton(command.Style, command.DisplayName, command.CommandCustomId);
-                        }
-                    }
-                    
-                    create.Components = builder.Build();
-                    
-                    signMessage.MessageChannel?.CreateMessage(Client, create).Then(discordMessage => { _pluginData.AddLog(discordMessage.Id, log); });
-                }
+                data.Add(PlaceholderDataKeys.SignArtistUrl, signage.Url);
             }
-            finally
+            
+            for (int index = 0; index < _pluginConfig.SignMessages.Count; index++)
             {
-                _log = null;
+                SignMessage signMessage = _pluginConfig.SignMessages[index];
+                DiscordMessageTemplate message = _templates.GetGlobalTemplate(this, signMessage.MessageId);
+                MessageCreate create = message.ToMessage<MessageCreate>(data);
+                data.Add(PlaceholderDataKeys.MessageId, signMessage.MessageId);
+                
+                create.AddAttachment("image.png", update.GetImage(), "image/png", $"{update.DisplayName} Updated {update.Entity.ShortPrefabName} @{update.Entity.transform.position} On {DateTime.Now:f}");
+                
+                if (signMessage.Buttons.Count != 0)
+                {
+                    if (signMessage.UseActionButton)
+                    {
+                        create.Components = new List<ActionRowComponent>
+                        {
+                            new()
+                            {
+                                Components = { _buttonTemplates.GetGlobalTemplate(this, TemplateKeys.Action.Button).ToComponent(data) }
+                            }
+                        };
+                    }
+                    else
+                    {
+                        create.Components = CreateButtons(signMessage, data, encodedState);
+                    }
+                }
+                
+                signMessage.MessageChannel?.CreateMessage(Client, create);
             }
         }
         
-        private DiscordEmbed BuildEmbed(IPlayer player, EmbedConfig embed, BaseImageUpdate update)
+        private List<ActionRowComponent> CreateButtons(SignMessage signMessage, PlaceholderData data, StateKey encodedState)
         {
-            DiscordEmbedBuilder builder = new DiscordEmbedBuilder();
-            if (!string.IsNullOrEmpty(embed.Title))
+            MessageComponentBuilder builder = new();
+            for (int i = 0; i < signMessage.Buttons.Count; i++)
             {
-                builder.AddTitle(ParsePlaceholders(player, embed.Title));
-            }
-            
-            if (!string.IsNullOrEmpty(embed.Description))
-            {
-                builder.AddDescription(ParsePlaceholders(player, embed.Description));
-            }
-            
-            if (!string.IsNullOrEmpty(embed.Url))
-            {
-                builder.AddUrl(ParsePlaceholders(player, embed.Url));
-            }
-            
-            if (!string.IsNullOrEmpty(embed.Image))
-            {
-                builder.AddImage(ParsePlaceholders(player, embed.Image));
-            }
-            
-            if (!string.IsNullOrEmpty(embed.Thumbnail))
-            {
-                builder.AddThumbnail(ParsePlaceholders(player, embed.Thumbnail));
-            }
-            
-            if (!string.IsNullOrEmpty(embed.Color))
-            {
-                builder.AddColor(embed.Color);
-            }
-            
-            if (embed.Timestamp)
-            {
-                builder.AddNowTimestamp();
-            }
-            
-            if (embed.Footer.Enabled)
-            {
-                if (string.IsNullOrEmpty(embed.Footer.Text) &&
-                string.IsNullOrEmpty(embed.Footer.IconUrl))
+                ButtonId buttonId = signMessage.Buttons[i];
+                ImageButton command = _imageButtons[buttonId];
+                if (command.Commands.Count == 0)
                 {
-                    AddPluginInfoFooter(builder);
+                    continue;
+                }
+                
+                if (command.Style == ButtonStyle.Link)
+                {
+                    builder.AddLinkButton(command.DisplayName, _placeholders.ProcessPlaceholders(command.Commands[0], data));
                 }
                 else
                 {
-                    string text = ParsePlaceholders(player, embed.Footer.Text);
-                    string footerUrl = ParsePlaceholders(player, embed.Footer.IconUrl);
-                    builder.AddFooter(text, footerUrl);
-                }
-            }
-            
-            foreach (EmbedFieldConfig field in embed.Fields)
-            {
-                builder.AddField(ParsePlaceholders(player, field.Title), ParsePlaceholders(player, field.Value), field.Inline);
-            }
-            
-            if (update is SignageUpdate)
-            {
-                SignageUpdate signage = (SignageUpdate)update;
-                if (!string.IsNullOrEmpty(signage.Url))
-                {
-                    builder.AddField(ParsePlaceholders(player, Lang(LangKeys.SignArtistTitle)), ParsePlaceholders(player, Lang(LangKeys.SignArtistValue)), true);
+                    builder.AddActionButton(command.Style, command.DisplayName, BuildCustomId(CommandPrefix, signMessage.MessageId, buttonId, encodedState));
                 }
             }
             
             return builder.Build();
         }
         
-        private const string OwnerIcon = "https://i.postimg.cc/cLGQsP1G/Sign-3.png";
-        
-        private void AddPluginInfoFooter(DiscordEmbedBuilder embed)
+        private string BuildCustomId(string command, IDiscordKey messageId, ButtonId? buttonId, IDiscordKey encodedState)
         {
-            embed.AddFooter($"{Title} V{Version} by {Author}", OwnerIcon);
+            return $"{command} {messageId.ToString()} {(buttonId.HasValue ? buttonId.Value.Id : "_")} {encodedState}";
         }
         #endregion
 
@@ -774,45 +746,43 @@ namespace Oxide.Plugins
             NetworkableId id = arg.GetEntityID(0);
             uint index = arg.GetUInt(1);
             BaseEntity entity = BaseNetworkable.serverEntities.Find(id) as BaseEntity;
-            if (entity == null)
+            if (!entity)
             {
                 return;
             }
             
-            if (entity is ISignage)
+            switch (entity)
             {
-                ISignage signage = (ISignage)entity;
-                uint[] textures = signage.GetTextureCRCs();
-                uint crc = textures[index];
-                if (crc == 0)
+                case ISignage signage:
                 {
-                    return;
+                    uint[] textures = signage.GetTextureCRCs();
+                    uint crc = textures[index];
+                    if (crc != 0)
+                    {
+                        FileStorage.server.RemoveExact(crc, FileStorage.Type.png, signage.NetworkID, index);
+                        textures[index] = 0;
+                        entity.SendNetworkUpdate();
+                        HandleReplaceImage(signage, index);
+                    }
+                    
+                    break;
                 }
-                FileStorage.server.RemoveExact(crc, FileStorage.Type.png, signage.NetworkID, index);
-                textures[index] = 0;
-                entity.SendNetworkUpdate();
-                
-                HandleReplaceImage(signage, index);
-                return;
-            }
-            
-            if (entity is PaintedItemStorageEntity)
-            {
-                PaintedItemStorageEntity item = (PaintedItemStorageEntity)entity;
-                if (item._currentImageCrc != 0)
+                case PaintedItemStorageEntity item:
                 {
-                    FileStorage.server.RemoveExact(item._currentImageCrc, FileStorage.Type.png, item.net.ID, 0);
-                    item._currentImageCrc = 0;
-                    item.SendNetworkUpdate();
+                    if (item._currentImageCrc != 0)
+                    {
+                        FileStorage.server.RemoveExact(item._currentImageCrc, FileStorage.Type.png, item.net.ID, 0);
+                        item._currentImageCrc = 0;
+                        item.SendNetworkUpdate();
+                    }
+                    
+                    break;
                 }
-            }
-            
-            if (entity is PatternFirework)
-            {
-                PatternFirework firework = (PatternFirework)entity;
+                case PatternFirework firework:
                 firework.Design?.Dispose();
                 firework.Design = null;
                 firework.SendNetworkUpdateImmediate();
+                break;
             }
         }
         
@@ -829,13 +799,17 @@ namespace Oxide.Plugins
             
             _pluginData.AddSignBan(playerId, duration);
             
+            using PlaceholderData data = GetPlaceholderData();
+            data.ManualPool();
+            data.AddTimeSpan(TimeSpan.FromSeconds(duration));
+            
             if (duration <= 0)
             {
                 arg.ReplyWith($"{playerId} has been sign blocked permanently");
             }
             else
             {
-                arg.ReplyWith($"{playerId} has been sign blocked for {GetFormattedDurationTime(TimeSpan.FromSeconds(duration))}");
+                arg.ReplyWith(_placeholders.ProcessPlaceholders($"{playerId} has been sign blocked for {DefaultKeys.Timespan.Formatted}", data));
             }
             
             SaveData();
@@ -857,7 +831,7 @@ namespace Oxide.Plugins
         
         private void HandleReplaceImage(ISignage signage, uint index)
         {
-            if (_pluginConfig.ReplaceImage.Mode == ErasedMode.None || SignArtist == null || !SignArtist.IsLoaded)
+            if (_pluginConfig.ReplaceImage.Mode == EraseMode.None || SignArtist is not { IsLoaded: true })
             {
                 return;
             }
@@ -865,7 +839,7 @@ namespace Oxide.Plugins
             ReplaceImageSettings image = _pluginConfig.ReplaceImage;
             if (signage is Signage)
             {
-                if (image.Mode == ErasedMode.Text)
+                if (image.Mode == EraseMode.Text)
                 {
                     SignArtist.Call("API_SignText", null, signage, image.Message, image.FontSize, image.TextColor, image.BodyColor, index);
                 }
@@ -892,39 +866,11 @@ namespace Oxide.Plugins
         #endregion
 
         #region Plugins\DiscordSignLogger.Helpers.cs
-        public DiscordChannel GetChannel(DiscordGuild guild, Snowflake id)
-        {
-            return guild?.Channels[id] ?? guild?.Threads[id];
-        }
-        
-        public IPlayer FindPlayerById(string id)
-        {
-            return covalence.Players.FindPlayerById(id);
-        }
-        
-        public string Lang(string key, BasePlayer player = null)
-        {
-            return lang.GetMessage(key, this, player ? player.UserIDString : null);
-        }
-        
-        public string Lang(string key, BasePlayer player = null, params object[] args)
-        {
-            try
-            {
-                return string.Format(lang.GetMessage(key, this, player ? player.UserIDString : null), args);
-            }
-            catch (Exception ex)
-            {
-                PrintError($"Lang Key '{key}' threw exception\n:{ex}");
-                throw;
-            }
-        }
-        
-        public void Chat(BasePlayer player, string key) => PrintToChat(player, Lang(LangKeys.Chat, player, Lang(key, player)));
-        public void Chat(BasePlayer player, string key, params object[] args) => PrintToChat(player, Lang(LangKeys.Chat, player, Lang(key, player, args)));
+        public IPlayer FindPlayerById(string id) => covalence.Players.FindPlayerById(id);
         
         public void SaveData() => Interface.Oxide.DataFileSystem.WriteObject(Name, _pluginData);
-        public void SaveButtonData() => Interface.Oxide.DataFileSystem.WriteObject(Name + "_Buttons", _buttonData);
+        
+        public void Puts(string format) => base.Puts(format);
         #endregion
 
         #region Plugins\DiscordSignLogger.Lang.cs
@@ -936,22 +882,7 @@ namespace Oxide.Plugins
                 [LangKeys.NoPermission] = "You do not have permission to perform this action",
                 [LangKeys.KickReason] = "Inappropriate sign/firework image",
                 [LangKeys.BanReason] = "Inappropriate sign/firework image",
-                [LangKeys.BlockedMessage] = "You're not allowed to update this sign/firework because you have been blocked. Your block will expire in {0}.",
-                [LangKeys.ActionMessage] = $"[{Title}] <@{{dsl.discord.user.id}}> ran command \"{{dsl.command}}\"",
-                [LangKeys.DeletedLog] = "The log data for this message was not found. If it's older than {0} days then it may have been deleted.",
-                [LangKeys.DeletedButtonCache] = "Button was not found in cache. If this message is older than {0} days then it may have been deleted.",
-                [LangKeys.SignArtistTitle] = "Sign Artist URL:",
-                [LangKeys.SignArtistValue] = "{dsl.signartist.url}",
-                [LangKeys.Format.Day] = "day ",
-                [LangKeys.Format.Days] = "days ",
-                [LangKeys.Format.Hour] = "hour ",
-                [LangKeys.Format.Hours] = "hours ",
-                [LangKeys.Format.Minute] = "minute ",
-                [LangKeys.Format.Minutes] = "minutes ",
-                [LangKeys.Format.Second] = "second",
-                [LangKeys.Format.Seconds] = "seconds",
-                [LangKeys.Format.TimeField] = $"<color={AccentColor}>{{0}}</color> {{1}}"
-                
+                [LangKeys.BlockedMessage] = $"You're not allowed to update this sign/firework because you have been blocked. Your block will expire in {DefaultKeys.Timespan.Formatted}.",
             }, this);
             
             lang.RegisterMessages(new Dictionary<string, string>
@@ -960,223 +891,265 @@ namespace Oxide.Plugins
                 [LangKeys.NoPermission] = "У вас нет разрешения на выполнение этого действия",
                 [LangKeys.KickReason] = "Недопустимое изображение знака/фейерверка",
                 [LangKeys.BanReason] = "Недопустимое изображение знака/фейерверка",
-                [LangKeys.BlockedMessage] = "Возможность использовать изображения на знаке/феерверке для вас заблокирована. Разблокировка через {0}.",
-                [LangKeys.ActionMessage] = $"[{Title}] <@{{dsl.discord.user.id}}> выполнил команду \"{{dsl.command}}\"",
-                [LangKeys.DeletedLog] = "Данные журнала для этого сообщения не найдены. Если сообщение старше {0} дней, возможно, оно было удалено.",
-                [LangKeys.DeletedButtonCache] = "Кнопка не найдена в кеше. Если сообщение старше {0} дней, возможно, оно было удалено.",
-                [LangKeys.SignArtistTitle] = "Sign Artist URL:",
-                [LangKeys.SignArtistValue] = "{dsl.signartist.url}",
-                [LangKeys.Format.Day] = "день ",
-                [LangKeys.Format.Days] = "дней ",
-                [LangKeys.Format.Hour] = "час ",
-                [LangKeys.Format.Hours] = "часов ",
-                [LangKeys.Format.Minute] = "минуту ",
-                [LangKeys.Format.Minutes] = "минут ",
-                [LangKeys.Format.Second] = "секунду",
-                [LangKeys.Format.Seconds] = "секунд",
-                [LangKeys.Format.TimeField] = $"<color={AccentColor}>{{0}}</color> {{1}}"
+                [LangKeys.BlockedMessage] = $"Возможность использовать изображения на знаке/феерверке для вас заблокирована. Разблокировка через {DefaultKeys.Timespan.Formatted}.",
             }, this, "ru");
         }
         
-        private string GetFormattedDurationTime(TimeSpan time, BasePlayer player = null)
+        public string Lang(string key, BasePlayer player = null)
         {
-            _sb.Clear();
-            
-            if (time.TotalDays >= 1)
-            {
-                BuildTime(_sb, time.Days == 1 ? LangKeys.Format.Day : LangKeys.Format.Days, player, time.Days);
-            }
-            
-            if (time.TotalHours >= 1)
-            {
-                BuildTime(_sb, time.Hours == 1 ? LangKeys.Format.Hour : LangKeys.Format.Hours, player, time.Hours);
-            }
-            
-            if (time.TotalMinutes >= 1)
-            {
-                BuildTime(_sb, time.Minutes == 1 ? LangKeys.Format.Minute : LangKeys.Format.Minutes, player, time.Minutes);
-            }
-            
-            BuildTime(_sb, time.Seconds == 1 ? LangKeys.Format.Second : LangKeys.Format.Seconds, player, time.Seconds);
-            
-            return _sb.ToString();
+            return lang.GetMessage(key, this, player ? player.UserIDString : null);
         }
         
-        private void BuildTime(StringBuilder sb, string key, BasePlayer player, int value)
+        public string Lang(string key, BasePlayer player, PlaceholderData data)
         {
-            sb.Append(Lang(LangKeys.Format.TimeField, player, value, Lang(key, player)));
+            return _placeholders.ProcessPlaceholders(Lang(key, player), data);
+        }
+        
+        public string Lang(string key, BasePlayer player = null, params object[] args)
+        {
+            try
+            {
+                return string.Format(Lang(key, player), args);
+            }
+            catch (Exception ex)
+            {
+                PrintError($"Lang Key '{key}' threw exception\n:{ex}");
+                throw;
+            }
+        }
+        
+        public void Chat(BasePlayer player, string key) => PrintToChat(player, Lang(LangKeys.Chat, player, Lang(key, player)));
+        public void Chat(BasePlayer player, string key, PlaceholderData data) => PrintToChat(player, Lang(LangKeys.Chat, player, Lang(key, player, data)));
+        #endregion
+
+        #region Plugins\DiscordSignLogger.Placeholders.cs
+        public void RegisterPlaceholders()
+        {
+            _placeholders.RegisterPlaceholder<SignUpdateState, ulong>(this, PlaceholderKeys.EntityId, PlaceholderDataKeys.State, state => state.EntityId);
+            _placeholders.RegisterPlaceholder<SignUpdateState, string>(this, PlaceholderKeys.EntityName, PlaceholderDataKeys.State, state => GetEntityName(state.Entity));
+            _placeholders.RegisterPlaceholder<SignUpdateState, string>(this, PlaceholderKeys.ItemName, PlaceholderDataKeys.State, state => GetItemName(state.ItemId));
+            _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.PlayerMessage, PlaceholderDataKeys.PlayerMessage);
+            _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.ServerMessage, PlaceholderDataKeys.ServerMessage);
+            _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.SignArtistUrl, PlaceholderDataKeys.SignArtistUrl);
+            _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.Command, PlaceholderDataKeys.Command);
+            _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.ButtonId, PlaceholderDataKeys.ButtonId);
+            _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.PlayerId, PlaceholderDataKeys.PlayerId);
+            _placeholders.RegisterPlaceholder<TemplateKey>(this, PlaceholderKeys.MessageId, PlaceholderDataKeys.MessageId);
+            _placeholders.RegisterPlaceholder<StateKey, string>(this, PlaceholderKeys.MessageState, PlaceholderDataKeys.MessageState, state => state.State);
+            _placeholders.RegisterPlaceholder<SignUpdateState, string>(this, PlaceholderKeys.TextureIndex, PlaceholderDataKeys.State, state =>
+            {
+                if (state.Entity is ISignage signage && signage.GetTextureCRCs().Length <= 1)
+                {
+                    return null;
+                }
+                
+                return StringCache<byte>.Instance.ToString(state.TextureIndex);
+            });
+            _placeholders.RegisterPlaceholder<SignUpdateState, GenericPosition>(this, PlaceholderKeys.Position, PlaceholderDataKeys.State, state =>
+            {
+                BaseEntity entity = state.Entity;
+                Vector3 pos = entity ? entity.transform.position : Vector3.zero;
+                return new GenericPosition(pos.x, pos.y, pos.z);
+            });
+            
+            PlayerPlaceholders.RegisterPlaceholders(this, PlaceholderKeys.OwnerKeys, PlaceholderDataKeys.Owner);
+        }
+        
+        public PlaceholderData GetPlaceholderData(SignUpdateState state, DiscordInteraction interaction) => GetPlaceholderData(state).AddInteraction(interaction);
+        
+        public PlaceholderData GetPlaceholderData(SignUpdateState state)
+        {
+            return GetPlaceholderData()
+            .AddPlayer(state.Player)
+            .Add(PlaceholderDataKeys.State, state)
+            .Add(PlaceholderDataKeys.Owner, state.Owner);
+        }
+        
+        public PlaceholderData GetPlaceholderData(DiscordInteraction interaction) => GetPlaceholderData().AddInteraction(interaction);
+        
+        public PlaceholderData GetPlaceholderData()
+        {
+            return _placeholders.CreateData(this);
         }
         #endregion
 
-        #region Plugins\DiscordSignLogger.PlaceholderApi.cs
-        #pragma warning disable CS0649
-        [PluginReference] private Plugin PlaceholderAPI;
-        #pragma warning restore CS0649
-        private Action<IPlayer, StringBuilder, bool> _replacer;
-        
-        private string ParsePlaceholders(IPlayer player, string field)
+        #region Plugins\DiscordSignLogger.Templates.cs
+        public void RegisterTemplates()
         {
-            _sb.Clear();
-            _sb.Append(field);
-            GetReplacer()?.Invoke(player, _sb, false);
-            if (_sb.Length == 0)
+            HashSet<string> messages = new();
+            foreach (SignMessage message in _pluginConfig.SignMessages)
             {
-                _sb.Append("\u200b");
+                if (messages.Add(message.MessageId.Name))
+                {
+                    _templates.RegisterGlobalTemplateAsync(this, message.MessageId, CreateDefaultTemplate(),
+                    new TemplateVersion(1, 0, 1), new TemplateVersion(1, 0, 1));
+                }
+                else
+                {
+                    PrintWarning($"Duplicate Message ID: '{message.MessageId.Name}'. Please check your config and correct the duplicate Sign Message ID's");
+                }
             }
-            return _sb.ToString();
-        }
-        
-        private void ParsePlaceholders(IPlayer player, StringBuilder sb)
-        {
-            GetReplacer()?.Invoke(player, sb, false);
-        }
-        
-        private void OnPluginUnloaded(Plugin plugin)
-        {
-            if (plugin?.Name == "PlaceholderAPI")
-            {
-                _replacer = null;
-            }
-        }
-        
-        public string GetSignAristUrl()
-        {
-            SignageUpdate signage = _log as SignageUpdate;
-            return signage?.Url ?? string.Empty;
-        }
-        
-        private void OnPlaceholderAPIReady()
-        {
-            RegisterPlaceholder("dsl.entity.id", (player, s) =>
-            {
-                BaseEntity entity = _log.Entity;
-                return entity ? entity.net?.ID.Value ?? 0 : 0;
-                
-            }, "Displays the entity ID");
             
-            RegisterPlaceholder("dsl.entity.textureindex", (player, s) => _log?.TextureIndex ?? 0, "Displays the texture index");
+            _templates.RegisterGlobalTemplateAsync(this, TemplateKeys.Action.Message, CreateActionMessage($"{DefaultKeys.User.Mention} ran command \"{PlaceholderKeys.Command}\"", DiscordColor.Blurple), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
+            _buttonTemplates.RegisterGlobalTemplateAsync(this, TemplateKeys.Action.Button, new ButtonTemplate("Actions", ButtonStyle.Primary, BuildCustomId(ActionPrefix, PlaceholderKeys.MessageId, null, PlaceholderKeys.MessageState)), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
             
-            RegisterPlaceholder("dsl.entity.name", (player, s) =>
+            RegisterEn();
+            RegisterRu();
+        }
+        
+        public void RegisterEn()
+        {
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.NoPermission, CreateMessage("You do not have permission to perform this action", DiscordColor.Danger), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.Errors.FailedToParse, CreateMessage("An error occurred parsing button data", DiscordColor.Danger), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.Errors.ButtonIdNotFound, CreateMessage($"Failed to find button with id: {PlaceholderKeys.ButtonId}. Please validate the button exists in the config.", DiscordColor.Danger), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
+            
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.Commands.Block.Success, CreateMessage($"{DefaultKeys.Player.Name} ({DefaultKeys.Player.Id}) has been sign blocked for {DefaultKeys.Timespan.Formatted}.", DiscordColor.Success), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.Commands.Block.Errors.PlayerNotFound, CreateMessage($"Failed to find player with id: {PlaceholderKeys.PlayerId}", DiscordColor.Danger), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.Commands.Block.Errors.IsAlreadyBanned, CreateMessage($"{DefaultKeys.Player.Name} ({DefaultKeys.Player.Id}) is already banned", DiscordColor.Danger), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
+            
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.Commands.Unblock.Success, CreateMessage($"You have removed {DefaultKeys.Player.Name} ({DefaultKeys.Player.Id}) sign block.", DiscordColor.Success), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.Commands.Unblock.Errors.PlayerNotFound, CreateMessage($"Failed to find player with id: {PlaceholderKeys.PlayerId}", DiscordColor.Danger), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.Commands.Unblock.Errors.NotBanned, CreateMessage($"{DefaultKeys.Player.Name} ({DefaultKeys.Player.Id}) is not sign blocked.", DiscordColor.Danger), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0));
+        }
+        
+        public void RegisterRu()
+        {
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.NoPermission, CreateMessage("У вас нет разрешения на выполнение этого действия", DiscordColor.Danger), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0), "ru");
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.Errors.FailedToParse, CreateMessage("Произошла ошибка при анализе данных кнопки.", DiscordColor.Danger), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0), "ru");
+            _templates.RegisterLocalizedTemplateAsync(this, TemplateKeys.Errors.ButtonIdNotFound, CreateMessage($"Не удалось найти кнопку с идентификатором: {PlaceholderKeys.ButtonId}. Пожалуйста, проверьте наличие кнопки в файле конфигурации.", DiscordColor.Danger), new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0), "ru");
+        }
+        
+        public DiscordMessageTemplate CreateMessage(string description, DiscordColor color)
+        {
+            return new DiscordMessageTemplate
             {
-                if (_log.ItemId != 0)
+                Embeds = new List<DiscordEmbedTemplate>
                 {
-                    return GetItemName(_log.ItemId);
+                    CreateEmbedTemplate(description, color)
                 }
-                
-                BaseEntity entity = _log.Entity;
-                return entity ? GetEntityName(entity) : "Entity Not Found";
-            }, "Displays the entity item name");
-            
-            RegisterPlaceholder("dsl.entity.owner.id", (player, s) =>
+            };
+        }
+        
+        public DiscordMessageTemplate CreateActionMessage(string description, DiscordColor color)
+        {
+            return new DiscordMessageTemplate
             {
-                BaseEntity entity = _log.Entity;
-                return entity ? entity.OwnerID : 0;
-            }, "Displays the entity Owner ID");
-            
-            RegisterPlaceholder("dsl.entity.owner.name", (player, s) =>
-            {
-                BaseEntity entity = _log.Entity;
-                if (!entity)
+                Embeds = new List<DiscordEmbedTemplate>
                 {
-                    return "Unknown";
+                    CreateEmbedTemplate(description, color)
+                },
+                Components = new List<BaseComponentTemplate>
+                {
+                    new ButtonTemplate("Image Message", ButtonStyle.Link, "discord://-/channels/{guild.id}/{channel.id}/{message.id}")
                 }
-                
-                IPlayer owner = covalence.Players.FindPlayerById(entity.OwnerID.ToString());
-                if (owner == null)
-                {
-                    return "Unknown";
-                }
-                
-                BasePlayer ownerPlayer = (BasePlayer)owner.Object;
-                return ownerPlayer ? ownerPlayer.displayName : owner.Name;
-            }, "Displays the entity owner player name");
-            
-            RegisterPlaceholder("dsl.entity.position", (player, s) =>
+            };
+        }
+        
+        public DiscordEmbedTemplate CreateEmbedTemplate(string description, DiscordColor color)
+        {
+            return new()
             {
-                BaseEntity entity = _log.Entity;
-                if (!entity)
+                Description = $"[{Title}] {description}",
+                Color = color.ToHex(),
+                Footer = GetFooterTemplate()
+            };
+        }
+        
+        public DiscordMessageTemplate CreateDefaultTemplate()
+        {
+            return new DiscordMessageTemplate
+            {
+                Embeds = new List<DiscordEmbedTemplate>
                 {
-                    if (string.IsNullOrEmpty(s))
+                    new()
                     {
-                        return Vector3.zero;
+                        Title = $"{DefaultKeys.Server.Name}",
+                        Color = "#AC7061",
+                        ImageUrl = "attachment://image.png",
+                        TimeStamp = true,
+                        Fields = new List<DiscordEmbedFieldTemplate>
+                        {
+                            new()
+                            {
+                                Name = "Player:",
+                                Value = $"{DefaultKeys.Player.Name} ([{DefaultKeys.Player.Id}]({DefaultKeys.Player.SteamProfile}))",
+                                Inline = true
+                            },
+                            new()
+                            {
+                                Name = "Owner:",
+                                Value = $"{PlaceholderKeys.OwnerKeys.Name} ([{PlaceholderKeys.OwnerKeys.Id}]({PlaceholderKeys.OwnerKeys.SteamProfile}))",
+                                Inline = true
+                            },
+                            new()
+                            {
+                                Name = "Position:",
+                                Value = $"{PlaceholderKeys.Position}",
+                                Inline = true
+                            },
+                            new()
+                            {
+                                Name = "Item:",
+                                Value = $"{PlaceholderKeys.EntityName}",
+                                Inline = true
+                            },
+                            new()
+                            {
+                                Name = "Texture Index",
+                                Value = $"{PlaceholderKeys.TextureIndex}",
+                                Inline = true,
+                                HideIfEmpty = true
+                            },
+                            new()
+                            {
+                                Name = "Sign Artist URL",
+                                Value = $"{PlaceholderKeys.SignArtistUrl}",
+                                Inline = true,
+                                HideIfEmpty = true
+                            }
+                        },
+                        Footer = GetFooterTemplate()
                     }
-                    
-                    return 0f;
                 }
-                
-                Vector3 pos = entity.transform.position;
-                if (string.IsNullOrEmpty(s))
-                {
-                    return pos;
-                }
-                
-                if (s.Equals("x", StringComparison.OrdinalIgnoreCase))
-                {
-                    return pos.x;
-                }
-                
-                if (s.Equals("y", StringComparison.OrdinalIgnoreCase))
-                {
-                    return pos.y;
-                }
-                
-                if (s.Equals("z", StringComparison.OrdinalIgnoreCase))
-                {
-                    return pos.z;
-                }
-                
-                return pos;
-            }, "Displays the position of the entity");
-            
-            RegisterPlaceholder("dsl.discord.user.id", (player, s) => _activeMember?.Id ?? default(Snowflake), "Discord user id who clicked the button");
-            RegisterPlaceholder("dsl.discord.user.name", (player, s) => _activeMember?.DisplayName ?? "Unknown User", "Discord display name of user who clicked the button");
-            RegisterPlaceholder("dsl.kick.reason", (player, s) => Lang(LangKeys.KickReason), "Kick Reason Lang Value");
-            RegisterPlaceholder("dsl.ban.reason", (player, s) => Lang(LangKeys.BanReason), "Ban Reason Lang Value");
-            RegisterPlaceholder("dsl.signartist.url", (player, s) => GetSignAristUrl(), "Sign Artist URL");
-            RegisterPlaceholder("dsl.action.guild.id", (player, s) => _interaction?.GuildId ?? default(Snowflake), "Actioned Message Guild ID");
-            RegisterPlaceholder("dsl.action.channel.id", (player, s) => _interaction?.ChannelId ?? default(Snowflake), "Actioned Message Channel ID");
-            RegisterPlaceholder("dsl.action.message.id", (player, s) => _interaction.Message?.Id ?? default(Snowflake), "Actioned Message Message ID");
+            };
         }
         
-        private void RegisterPlaceholder(string key, Func<IPlayer, string, object> action, string description = null)
+        public EmbedFooterTemplate GetFooterTemplate()
         {
-            if (IsPlaceholderApiLoaded())
+            return new EmbedFooterTemplate
             {
-                PlaceholderAPI.Call("AddPlaceholder", this, key, action, description);
-            }
+                Enabled = true,
+                Text = $"{DefaultKeys.Plugin.Name} V{DefaultKeys.Plugin.Version} by {DefaultKeys.Plugin.Author}",
+                IconUrl = "https://assets.umod.org/images/icons/plugin/61f1b7f6da7b6.png"
+            };
         }
-        
-        private Action<IPlayer, StringBuilder, bool> GetReplacer()
-        {
-            if (!IsPlaceholderApiLoaded())
-            {
-                return _replacer;
-            }
-            
-            return _replacer ?? (_replacer = PlaceholderAPI.Call<Action<IPlayer, StringBuilder, bool>>("GetProcessPlaceholders", 1));
-        }
-        
-        private bool IsPlaceholderApiLoaded() => PlaceholderAPI != null && PlaceholderAPI.IsLoaded;
         #endregion
 
         #region Plugins\DiscordSignLogger.RustTranslationApi.cs
         public string GetEntityName(BaseEntity entity)
         {
-            if (!entity)
+            if (!entity.IsValid())
             {
                 return string.Empty;
             }
             
-            if (RustTranslationAPI != null && RustTranslationAPI.IsLoaded)
+            if (_prefabNameCache.TryGetValue(entity.prefabID, out string name))
             {
-                string name = RustTranslationAPI.Call<string>("GetDeployableTranslation", lang.GetServerLanguage(), entity.ShortPrefabName);
+                return name;
+            }
+            
+            if (RustTranslationAPI is { IsLoaded: true })
+            {
+                name = RustTranslationAPI.Call<string>("GetDeployableTranslation", lang.GetServerLanguage(), entity.ShortPrefabName);
                 if (!string.IsNullOrEmpty(name))
                 {
+                    _prefabNameCache[entity.prefabID] = name;
                     return name;
                 }
             }
             
-            return _prefabNameLookup[entity.ShortPrefabName] ?? entity.ShortPrefabName;
+            _prefabNameCache[entity.prefabID] = entity.ShortPrefabName;
+            return entity.ShortPrefabName;
         }
         
         public string GetItemName(int itemId)
@@ -1186,44 +1159,235 @@ namespace Oxide.Plugins
                 return string.Empty;
             }
             
-            if (RustTranslationAPI != null && RustTranslationAPI.IsLoaded)
+            if (_itemNameCache.TryGetValue(itemId, out string name))
             {
-                string name = RustTranslationAPI.Call<string>("GetItemTranslationByID", lang.GetServerLanguage(), itemId);
+                return name;
+            }
+            
+            if (RustTranslationAPI is { IsLoaded: true })
+            {
+                name = RustTranslationAPI.Call<string>("GetItemTranslationByID", lang.GetServerLanguage(), itemId);
                 if (!string.IsNullOrEmpty(name))
                 {
+                    _itemNameCache[itemId] = name;
                     return name;
                 }
             }
             
-            return ItemManager.FindItemDefinition(itemId).displayName.translated;
+            name = ItemManager.FindItemDefinition(itemId).displayName.translated;
+            _itemNameCache[itemId] = name;
+            return name;
         }
         #endregion
 
-        #region Configuration\BaseDiscordButton.cs
-        public class BaseDiscordButton
+        #region Plugins\DiscordSignLogger.AppCommands.cs
+        public void RegisterApplicationCommands()
         {
-            [JsonProperty(PropertyName = "Button Display Name")]
-            public string DisplayName { get; set; }
+            ApplicationCommandBuilder builder = new ApplicationCommandBuilder(AppCommand.Command, "Discord Sign Logger Commands", ApplicationCommandType.ChatInput)
+            .AddDefaultPermissions(PermissionFlags.None);
             
-            [JsonConverter(typeof(StringEnumConverter))]
-            [JsonProperty(PropertyName = "Button Style")]
-            public ButtonStyle Style { get; set; }
+            AddBlockCommand(builder);
+            AddUnblockCommand(builder);
             
-            [JsonProperty(PropertyName = "Commands")]
-            public List<string> Commands { get; set; }
+            CommandCreate build = builder.Build();
+            DiscordCommandLocalization localization = builder.BuildCommandLocalization();
             
-            [JsonConstructor]
-            public BaseDiscordButton()
+            TemplateKey template = new("Command");
+            _local.RegisterCommandLocalizationAsync(this, template, localization, new TemplateVersion(1, 0, 0), new TemplateVersion(1, 0, 0)).Then(_ =>
             {
-                
+                _local.ApplyCommandLocalizationsAsync(this, build, template).Then(() =>
+                {
+                    Client.Bot.Application.CreateGlobalCommand(Client, build);
+                });
+            });
+        }
+        
+        public void AddBlockCommand(ApplicationCommandBuilder builder)
+        {
+            builder.AddSubCommand(AppCommand.Block, "Block a player from painting on signs", cmd =>
+            {
+                cmd.AddOption(CommandOptionType.String, AppArgs.Player, "Player to block",
+                options => options.Required().AutoComplete())
+                .AddOption(CommandOptionType.Integer, AppArgs.Duration, "Block duration (Seconds)", options =>
+                options.Required()
+                .AddChoice("1 Hour", 60 * 60)
+                .AddChoice("12 Hours", 60 * 60 * 12)
+                .AddChoice("1 Day", 60 * 60 * 24)
+                .AddChoice("3 Days", 60 * 60 * 24 * 3)
+                .AddChoice("1 Week", 60 * 60 * 24 * 7)
+                .AddChoice("2 Weeks", 60 * 60 * 24 * 7 * 2)
+                .AddChoice("1 Month", 60 * 60 * 24 * 31)
+                .AddChoice("Forever", -1));
+            });
+        }
+        
+        public void AddUnblockCommand(ApplicationCommandBuilder builder)
+        {
+            builder.AddSubCommand(AppCommand.Unblock, "Unblock a sign blocked player", cmd =>
+            {
+                cmd.AddOption(CommandOptionType.String, AppArgs.Player, "Player to unblock",
+                options => options.Required().AutoComplete());
+            });
+        }
+        
+        
+        [DiscordAutoCompleteCommand(AppCommand.Command, AppArgs.Player, AppCommand.Block)]
+        private void DiscordBlockAutoComplete(DiscordInteraction interaction, InteractionDataOption focused)
+        {
+            string search = focused.GetString();
+            InteractionAutoCompleteBuilder response = interaction.GetAutoCompleteBuilder();
+            response.AddAllOnlineFirstPlayers(search, PlayerNameFormatter.All);
+            interaction.CreateResponse(Client, response);
+        }
+        
+        [DiscordAutoCompleteCommand(AppCommand.Command, AppArgs.Player, AppCommand.Unblock)]
+        private void DiscordUnblockAutoComplete(DiscordInteraction interaction, InteractionDataOption focused)
+        {
+            string search = focused.GetString();
+            InteractionAutoCompleteBuilder response = interaction.GetAutoCompleteBuilder();
+            response.AddPlayerList(search, GetBannedPlayers(), PlayerNameFormatter.All);
+            interaction.CreateResponse(Client, response);
+        }
+        
+        [DiscordApplicationCommand(AppCommand.Command, AppCommand.Block)]
+        private void DiscordBlockCommand(DiscordInteraction interaction, InteractionDataParsed parsed)
+        {
+            string playerId = parsed.Args.GetString(AppArgs.Player);
+            IPlayer player = FindPlayerById(playerId);
+            PlaceholderData data = GetPlaceholderData(interaction);
+            if (player == null)
+            {
+                data.Add(PlaceholderDataKeys.PlayerId, playerId);
+                SendTemplateResponse(interaction, TemplateKeys.Commands.Block.Errors.PlayerNotFound, data);
+                return;
             }
             
-            public BaseDiscordButton(BaseDiscordButton settings)
+            data.AddPlayer(player);
+            
+            if (_pluginData.IsSignBanned(playerId))
             {
-                DisplayName = settings?.DisplayName ?? "Button Display Name";
-                Style = settings?.Style ?? ButtonStyle.Primary;
-                Commands = settings?.Commands ?? new List<string>();
+                SendTemplateResponse(interaction, TemplateKeys.Commands.Block.Errors.IsAlreadyBanned, data);
+                return;
             }
+            
+            int duration = parsed.Args.GetInt(AppArgs.Duration);
+            _pluginData.AddSignBan(ulong.Parse(playerId), duration);
+            data.AddTimeSpan(TimeSpan.FromSeconds(duration));
+            
+            SendTemplateResponse(interaction, TemplateKeys.Commands.Block.Success, data);
+        }
+        
+        [DiscordApplicationCommand(AppCommand.Command, AppCommand.Unblock)]
+        private void DiscordUnblockCommand(DiscordInteraction interaction, InteractionDataParsed parsed)
+        {
+            string playerId = parsed.Args.GetString(AppArgs.Player);
+            IPlayer player = FindPlayerById(playerId);
+            PlaceholderData data = GetPlaceholderData(interaction);
+            if (player == null)
+            {
+                data.Add(PlaceholderDataKeys.PlayerId, playerId);
+                SendTemplateResponse(interaction, TemplateKeys.Commands.Unblock.Errors.PlayerNotFound, data);
+                return;
+            }
+            
+            data.AddPlayer(player);
+            
+            if (!_pluginData.IsSignBanned(playerId))
+            {
+                SendTemplateResponse(interaction, TemplateKeys.Commands.Unblock.Errors.NotBanned, data);
+                return;
+            }
+            
+            _pluginData.RemoveSignBan(ulong.Parse(playerId));
+            SendTemplateResponse(interaction, TemplateKeys.Commands.Unblock.Success, data);
+        }
+        #endregion
+
+        #region Plugins\DiscordSignLogger.DiscordInteractions.cs
+        [DiscordMessageComponentCommand(CommandPrefix)]
+        private void DiscordSignLoggerCommand(DiscordInteraction interaction)
+        {
+            if (!TryParseCommand(interaction.Data.CustomId, out TemplateKey messageId, out ButtonId buttonId, out SignUpdateState state))
+            {
+                SendErrorResponse(interaction, TemplateKeys.Errors.FailedToParse, GetPlaceholderData());
+                return;
+            }
+            
+            ImageButton button = _imageButtons[buttonId];
+            if (button == null)
+            {
+                SendErrorResponse(interaction, TemplateKeys.Errors.ButtonIdNotFound, GetPlaceholderData().Add(PlaceholderDataKeys.ButtonId, buttonId.Id));
+                return;
+            }
+            
+            if (button.RequirePermissions && !UserHasButtonPermission(interaction, button))
+            {
+                SendTemplateResponse(interaction, TemplateKeys.NoPermission, GetPlaceholderData());
+                return;
+            }
+            
+            if (button.ConfirmModal)
+            {
+                ShowConfirmationModal(interaction, state, button, messageId, buttonId);
+                return;
+            }
+            
+            RunCommand(interaction, state, button, button.PlayerMessage, button.ServerMessage);
+        }
+        
+        [DiscordMessageComponentCommand(ActionPrefix)]
+        private void DiscordSignLoggerAction(DiscordInteraction interaction)
+        {
+            if (!TryParseCommand(interaction.Data.CustomId, out TemplateKey messageId, out ButtonId buttonId, out SignUpdateState state))
+            {
+                SendErrorResponse(interaction, TemplateKeys.Errors.FailedToParse, GetPlaceholderData());
+                return;
+            }
+            
+            SignMessage message = _signMessages[messageId];
+            interaction.CreateResponse(Client, InteractionResponseType.UpdateMessage, new InteractionCallbackData
+            {
+                Components = CreateButtons(message, GetPlaceholderData(state, interaction), state.Serialize())
+            });
+        }
+        
+        [DiscordModalSubmit(ModalPrefix)]
+        private void DiscordSignLoggerModal(DiscordInteraction interaction)
+        {
+            if (!TryParseCommand(interaction.Data.CustomId, out TemplateKey messageId, out ButtonId buttonId, out SignUpdateState state))
+            {
+                SendErrorResponse(interaction, TemplateKeys.Errors.FailedToParse, GetPlaceholderData());
+                return;
+            }
+            
+            ImageButton button = _imageButtons[buttonId];
+            if (button == null)
+            {
+                SendErrorResponse(interaction, TemplateKeys.Errors.ButtonIdNotFound, GetPlaceholderData().Add(PlaceholderDataKeys.ButtonId, buttonId.Id));
+                return;
+            }
+            
+            string playerMessage = interaction.Data.GetComponent<InputTextComponent>(PlayerMessage).Value;
+            string serverMessage = interaction.Data.GetComponent<InputTextComponent>(ServerMessage).Value;
+            
+            RunCommand(interaction, state, button, playerMessage, serverMessage);
+        }
+        #endregion
+
+        #region AppCommands\AppArgs.cs
+        public class AppArgs
+        {
+            public const string Player = "player";
+            public const string Duration = "duration";
+        }
+        #endregion
+
+        #region AppCommands\AppCommand.cs
+        public class AppCommand
+        {
+            public const string Command = "dsl";
+            public const string Block = "block";
+            public const string Unblock = "unblock";
         }
         #endregion
 
@@ -1236,6 +1400,9 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "Circle Size (Pixels)")]
             public int CircleSize { get; set; }
             
+            [JsonConstructor]
+            private FireworkSettings() { }
+            
             public FireworkSettings(FireworkSettings settings)
             {
                 ImageSize = settings?.ImageSize ?? 250;
@@ -1244,14 +1411,30 @@ namespace Oxide.Plugins
         }
         #endregion
 
-        #region Configuration\ImageMessageButtonCommand.cs
-        public class ImageMessageButtonCommand : BaseDiscordButton
+        #region Configuration\ImageButton.cs
+        public class ImageButton
         {
+            [JsonProperty(PropertyName = "Button ID")]
+            public ButtonId ButtonId { get; set; }
+            
+            [JsonProperty(PropertyName = "Button Display Name")]
+            public string DisplayName { get; set; }
+            
+            [JsonConverter(typeof(StringEnumConverter))]
+            [JsonProperty(PropertyName = "Button Style")]
+            public ButtonStyle Style { get; set; }
+            
+            [JsonProperty(PropertyName = "Commands")]
+            public List<string> Commands { get; set; }
+            
             [JsonProperty(PropertyName = "Player Message")]
             public string PlayerMessage { get; set; }
             
             [JsonProperty(PropertyName = "Server Message")]
             public string ServerMessage { get; set; }
+            
+            [JsonProperty(PropertyName = "Show Confirmation Modal")]
+            public bool ConfirmModal { get; set; }
             
             [JsonProperty(PropertyName = "Requires Permissions To Use Button")]
             public bool RequirePermissions { get; set; }
@@ -1262,51 +1445,21 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "Allowed Oxide Groups (Group Name)")]
             public List<string> AllowedGroups { get; set; }
             
-            [JsonIgnore]
-            public int CommandId { get; private set; }
-            
-            [JsonIgnore]
-            public string CommandCustomId { get; private set; }
-            
             [JsonConstructor]
-            public ImageMessageButtonCommand()
-            {
-                
-            }
+            public ImageButton() { }
             
-            public ImageMessageButtonCommand(ImageMessageButtonCommand settings) : base(settings)
+            public ImageButton(ImageButton settings)
             {
-                PlayerMessage = settings?.PlayerMessage ?? "Player Message";
-                ServerMessage = settings?.ServerMessage ?? "Server Message";
-                RequirePermissions = settings?.RequirePermissions ?? true;
-                AllowedRoles = settings?.AllowedRoles ?? new List<Snowflake>();
-                AllowedGroups = settings?.AllowedGroups ?? new List<string>();
-            }
-            
-            public void SetCommandId()
-            {
-                CommandId = GetCommandId();
-                CommandCustomId = $"{DiscordSignLogger.CommandPrefix}{CommandId}";
-            }
-            
-            public int GetCommandId()
-            {
-                unchecked
-                {
-                    int commandId = 0;
-                    if (Commands.Count != 0)
-                    {
-                        commandId = StringComparer.OrdinalIgnoreCase.GetHashCode(Commands[0]);
-                    }
-                    
-                    for (int index = 1; index < Commands.Count; index++)
-                    {
-                        string command = Commands[index];
-                        commandId = (commandId * 397) ^ StringComparer.OrdinalIgnoreCase.GetHashCode(command);
-                    }
-                    
-                    return commandId;
-                }
+                ButtonId = settings.ButtonId;
+                DisplayName = settings.DisplayName ?? "Button Display Name";
+                Style = settings.Style;
+                Commands = settings.Commands ?? new List<string>();
+                PlayerMessage = settings.PlayerMessage ?? string.Empty;
+                ServerMessage = settings.ServerMessage ?? string.Empty;
+                ConfirmModal = settings.ConfirmModal;
+                RequirePermissions = settings.RequirePermissions;
+                AllowedRoles = settings.AllowedRoles ?? new List<Snowflake>();
+                AllowedGroups = settings.AllowedGroups ?? new List<string>();
             }
         }
         #endregion
@@ -1318,20 +1471,12 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "Discord Bot Token")]
             public string DiscordApiKey { get; set; }
             
-            [JsonProperty(PropertyName = "Action Log Settings")]
-            public ActionLogConfig ActionLog { get; set; }
-            
             [DefaultValue(true)]
-            [JsonProperty(PropertyName = "Disable Discord Button After User")]
+            [JsonProperty(PropertyName = "Disable Discord Button After Use")]
             public bool DisableDiscordButton { get; set; }
             
-            [DefaultValue(14)]
-            [JsonProperty(PropertyName = "Delete Saved Log Data After (Days)")]
-            public float DeleteLogDataAfter { get; set; }
-            
-            [DefaultValue(14)]
-            [JsonProperty(PropertyName = "Delete Cached Button Data After (Days)")]
-            public float DeleteButtonCacheAfter { get; set; }
+            [JsonProperty(PropertyName = "Action Log Channel ID")]
+            public Snowflake ActionLogChannel { get; set; }
             
             [JsonProperty(PropertyName = "Replace Erased Image (Requires SignArtist)")]
             public ReplaceImageSettings ReplaceImage { get; set; }
@@ -1341,6 +1486,11 @@ namespace Oxide.Plugins
             
             [JsonProperty(PropertyName = "Sign Messages")]
             public List<SignMessage> SignMessages { get; set; }
+            
+            [JsonProperty(PropertyName = "Buttons")]
+            public List<ImageButton> Buttons { get; set; }
+            
+            public PluginSettings PluginSettings { get; set; }
             
             [JsonConverter(typeof(StringEnumConverter))]
             [DefaultValue(DiscordLogLevel.Info)]
@@ -1354,7 +1504,7 @@ namespace Oxide.Plugins
         {
             [JsonConverter(typeof(StringEnumConverter))]
             [JsonProperty(PropertyName = "Replaced Mode (None, Url, Text)")]
-            public ErasedMode Mode { get; set; }
+            public EraseMode Mode { get; set; }
             
             [JsonProperty(PropertyName = "URL")]
             public string Url { get; set; }
@@ -1371,177 +1521,65 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "Body Color")]
             public string BodyColor { get; set; }
             
+            [JsonConstructor]
+            private ReplaceImageSettings() { }
+            
             public ReplaceImageSettings(ReplaceImageSettings settings)
             {
-                Mode = settings?.Mode ?? ErasedMode.Url;
+                Mode = settings?.Mode ?? EraseMode.Url;
                 Url = settings?.Url ?? "https://i.postimg.cc/mD5xZ5R5/Erased-4.png";
                 Message = settings?.Message ?? "ERASED BY ADMIN";
                 FontSize = settings?.FontSize ?? 16;
                 TextColor = settings?.TextColor ?? "#cd4632";
                 BodyColor = settings?.BodyColor ?? "#000000";
             }
+            
+            private bool ShouldSerializeUrl() => Mode == EraseMode.Url;
+            private bool ShouldSerializeMessage() => Mode == EraseMode.Text;
+            private bool ShouldSerializeFontSize() => Mode == EraseMode.Text;
+            private bool ShouldSerializeTextColor() => Mode == EraseMode.Text;
+            private bool ShouldSerializeBodyColor() => Mode == EraseMode.Text;
         }
         #endregion
 
         #region Configuration\SignMessage.cs
         public class SignMessage
         {
+            [JsonProperty("Message ID")]
+            public TemplateKey MessageId { get; set; }
+            
             [JsonProperty("Discord Channel ID")]
             public Snowflake ChannelId { get; set; }
             
-            [JsonProperty(PropertyName = "Message Config")]
-            public MessageConfig MessageConfig { get; set; }
+            [JsonProperty("Use Action Button")]
+            public bool UseActionButton { get; set; } = true;
             
-            [JsonProperty("Button Commands")]
-            public List<ImageMessageButtonCommand> Commands { get; set; }
+            [JsonProperty("Buttons")]
+            public List<ButtonId> Buttons { get; set; }
             
             [JsonIgnore]
             public DiscordChannel MessageChannel;
             
+            [JsonConstructor]
+            private SignMessage() { }
+            
             public SignMessage(SignMessage settings)
             {
+                MessageId = settings?.MessageId ?? new TemplateKey("DEFAULT");
+                if (!MessageId.IsValid)
+                {
+                    MessageId = new TemplateKey("DEFAULT");
+                }
                 ChannelId = settings?.ChannelId ?? default(Snowflake);
-                Commands = settings?.Commands ?? new List<ImageMessageButtonCommand>
+                UseActionButton = settings?.UseActionButton ?? true;
+                Buttons = settings?.Buttons ?? new List<ButtonId>
                 {
-                    new ImageMessageButtonCommand
-                    {
-                        DisplayName = "Player Profile",
-                        Style = ButtonStyle.Link,
-                        Commands = new List<string> { "https://steamcommunity.com/profiles/{player.id}" },
-                        PlayerMessage = string.Empty,
-                        ServerMessage = string.Empty,
-                        RequirePermissions = false,
-                        AllowedRoles = new List<Snowflake>(),
-                        AllowedGroups = new List<string>()
-                    },
-                    new ImageMessageButtonCommand
-                    {
-                        DisplayName = "Owner Profile",
-                        Style = ButtonStyle.Link,
-                        Commands = new List<string> { "https://steamcommunity.com/profiles/{dsl.entity.owner.id}" },
-                        PlayerMessage = string.Empty,
-                        ServerMessage = string.Empty,
-                        RequirePermissions = false,
-                        AllowedRoles = new List<Snowflake>(),
-                        AllowedGroups = new List<string>()
-                    },
-                    new ImageMessageButtonCommand
-                    {
-                        DisplayName = "Erase",
-                        Style = ButtonStyle.Primary,
-                        Commands = new List<string> { "dsl.erase {dsl.entity.id} {dsl.entity.textureindex}" },
-                        PlayerMessage = "An admin erased your sign for being inappropriate",
-                        ServerMessage = string.Empty,
-                        RequirePermissions = false,
-                        AllowedRoles = new List<Snowflake>(),
-                        AllowedGroups = new List<string>()
-                    },
-                    new ImageMessageButtonCommand
-                    {
-                        DisplayName = "Sign Block (24 Hours)",
-                        Style = ButtonStyle.Primary,
-                        Commands = new List<string> { "dsl.signblock {player.id} 86400" },
-                        PlayerMessage = "You have been banned from updating signs for 24 hours.",
-                        ServerMessage = string.Empty,
-                        RequirePermissions = true,
-                        AllowedRoles = new List<Snowflake>(),
-                        AllowedGroups = new List<string>()
-                    },
-                    new ImageMessageButtonCommand
-                    {
-                        DisplayName = "Kill Entity",
-                        Style = ButtonStyle.Secondary,
-                        Commands = new List<string> { "entid kill {dsl.entity.id}" },
-                        PlayerMessage = "An admin killed your sign for being inappropriate",
-                        ServerMessage = string.Empty,
-                        RequirePermissions = true,
-                        AllowedRoles = new List<Snowflake>(),
-                        AllowedGroups = new List<string>()
-                    },
-                    new ImageMessageButtonCommand
-                    {
-                        DisplayName = "Kick Player",
-                        Style = ButtonStyle.Danger,
-                        Commands = new List<string> { "kick {player.id} \"{dsl.kick.reason}\"", "dsl.erase {dsl.entity.id} {dsl.entity.textureindex}" },
-                        PlayerMessage = string.Empty,
-                        ServerMessage = string.Empty,
-                        RequirePermissions = true,
-                        AllowedRoles = new List<Snowflake>(),
-                        AllowedGroups = new List<string>()
-                    },
-                    new ImageMessageButtonCommand
-                    {
-                        DisplayName = "Ban Player",
-                        Style = ButtonStyle.Danger,
-                        Commands = new List<string> { "ban {player.id} \"{dsl.ban.reason}\"", "dsl.erase {dsl.entity.id} {dsl.entity.textureindex}" },
-                        PlayerMessage = string.Empty,
-                        ServerMessage = string.Empty,
-                        RequirePermissions = true,
-                        AllowedRoles = new List<Snowflake>(),
-                        AllowedGroups = new List<string>()
-                    }
+                    new("ERASE"),
+                    new("SIGN_BLOCK_24_HOURS"),
+                    new("KILL_ENTITY"),
+                    new("KICK_PLAYER"),
+                    new("BAN_PLAYER"),
                 };
-                
-                for (int index = 0; index < Commands.Count; index++)
-                {
-                    Commands[index] = new ImageMessageButtonCommand(Commands[index]);
-                }
-                
-                MessageConfig = new MessageConfig(settings?.MessageConfig);
-            }
-        }
-        #endregion
-
-        #region Data\ButtonData.cs
-        public class ButtonData
-        {
-            public ImageMessageButtonCommand Command { get; set; }
-            public DateTime AddedDate { get; set; }
-            
-            public ButtonData(ImageMessageButtonCommand command)
-            {
-                Command = command;
-                AddedDate = DateTime.UtcNow;
-            }
-        }
-        #endregion
-
-        #region Data\PluginButtonData.cs
-        public class PluginButtonData
-        {
-            public Hash<int, ButtonData> CommandLookup = new Hash<int, ButtonData>();
-            
-            public void AddOrUpdate(ImageMessageButtonCommand command)
-            {
-                CommandLookup[command.CommandId] = new ButtonData(command);
-            }
-            
-            public ImageMessageButtonCommand Get(int hash)
-            {
-                return CommandLookup[hash]?.Command;
-            }
-            
-            public void CleanupExpired(List<int> active, float deleteAfter)
-            {
-                List<int> oldButtons = new List<int>();
-                foreach (KeyValuePair<int, ButtonData> button in CommandLookup)
-                {
-                    if (active.Contains(button.Key))
-                    {
-                        continue;
-                    }
-                    
-                    if ((DateTime.UtcNow - button.Value.AddedDate).TotalDays >= deleteAfter)
-                    {
-                        oldButtons.Add(button.Key);
-                    }
-                }
-                
-                for (int index = 0; index < oldButtons.Count; index++)
-                {
-                    int button = oldButtons[index];
-                    CommandLookup.Remove(button);
-                }
             }
         }
         #endregion
@@ -1549,35 +1587,7 @@ namespace Oxide.Plugins
         #region Data\PluginData.cs
         public class PluginData
         {
-            public Hash<Snowflake, SignUpdateLog> SignLogs = new Hash<Snowflake, SignUpdateLog>();
-            public Hash<ulong, DateTime> SignBannedUsers = new Hash<ulong, DateTime>();
-            
-            public SignUpdateLog GetLog(Snowflake messageId)
-            {
-                return SignLogs[messageId];
-            }
-            
-            public void AddLog(Snowflake messageId, SignUpdateLog data)
-            {
-                SignLogs[messageId] = data;
-            }
-            
-            public void CleanupExpired(float deleteAfter)
-            {
-                List<Snowflake> cleanup = new List<Snowflake>();
-                foreach (KeyValuePair<Snowflake, SignUpdateLog> log in SignLogs)
-                {
-                    if ((DateTime.UtcNow - log.Value.LogDate).TotalDays >= deleteAfter)
-                    {
-                        cleanup.Add(log.Key);
-                    }
-                }
-                
-                foreach (Snowflake key in cleanup)
-                {
-                    SignLogs.Remove(key);
-                }
-            }
+            public Hash<ulong, DateTime> SignBannedUsers = new();
             
             public void AddSignBan(ulong player, float duration)
             {
@@ -1589,17 +1599,20 @@ namespace Oxide.Plugins
                 SignBannedUsers.Remove(player);
             }
             
-            public bool IsSignBanned(BasePlayer player)
+            public bool IsSignBanned(BasePlayer player) => IsSignBanned(player.userID);
+            public bool IsSignBanned(string playerId) => IsSignBanned(ulong.Parse(playerId));
+            
+            public bool IsSignBanned(ulong playerId)
             {
-                if (!SignBannedUsers.ContainsKey(player.userID))
+                if (!SignBannedUsers.ContainsKey(playerId))
                 {
                     return false;
                 }
                 
-                DateTime bannedUntil = SignBannedUsers[player.userID];
+                DateTime bannedUntil = SignBannedUsers[playerId];
                 if (bannedUntil < DateTime.UtcNow)
                 {
-                    SignBannedUsers.Remove(player.userID);
+                    SignBannedUsers.Remove(playerId);
                     return false;
                 }
                 
@@ -1613,205 +1626,45 @@ namespace Oxide.Plugins
         }
         #endregion
 
-        #region Data\SignUpdateLog.cs
-        public class SignUpdateLog : ILogEvent
-        {
-            public ulong PlayerId { get; set; }
-            public ulong EntityId { get; set; }
-            public int ItemId { get; set; }
-            public uint TextureIndex { get; set; }
-            
-            public DateTime LogDate { get; set; }
-            
-            [JsonIgnore]
-            private IPlayer _player;
-            [JsonIgnore]
-            public IPlayer Player => _player ?? (_player = DiscordSignLogger.Instance.FindPlayerById(PlayerId.ToString()));
-            
-            [JsonIgnore]
-            private BaseEntity _entity;
-            
-            [JsonIgnore]
-            public BaseEntity Entity
-            {
-                get
-                {
-                    if (_entity)
-                    {
-                        return _entity;
-                    }
-                    
-                    if (LogDate < SaveRestore.SaveCreatedTime)
-                    {
-                        return null;
-                    }
-                    
-                    _entity = BaseNetworkable.serverEntities.Find(new NetworkableId(EntityId)) as BaseEntity;
-                    
-                    return _entity;
-                }
-            }
-            
-            [JsonConstructor]
-            public SignUpdateLog()
-            {
-                
-            }
-            
-            public SignUpdateLog(BaseImageUpdate update)
-            {
-                PlayerId = update.PlayerId;
-                EntityId = update.Entity.net.ID.Value;
-                LogDate = DateTime.UtcNow;
-                
-                if (update.SupportsTextureIndex)
-                {
-                    TextureIndex = update.TextureIndex;
-                }
-                
-                if (update is PaintedItemUpdate)
-                {
-                    ItemId = ((PaintedItemUpdate)update).ItemId;
-                }
-            }
-        }
-        #endregion
-
-        #region Discord\EmbedConfig.cs
-        public class EmbedConfig
-        {
-            [JsonProperty("Title")]
-            public string Title { get; set; }
-            
-            [JsonProperty("Description")]
-            public string Description { get; set; }
-            
-            [JsonProperty("Url")]
-            public string Url { get; set; }
-            
-            [JsonProperty("Embed Color (Hex Color Code)")]
-            public string Color { get; set; }
-            
-            [JsonProperty("Image Url")]
-            public string Image { get; set; }
-            
-            [JsonProperty("Thumbnail Url")]
-            public string Thumbnail { get; set; }
-            
-            [JsonProperty("Add Timestamp")]
-            public bool Timestamp { get; set; }
-            
-            [JsonProperty(PropertyName = "Embed Fields")]
-            public List<EmbedFieldConfig> Fields { get; set; }
-            
-            [JsonProperty("Footer")]
-            public FooterConfig Footer { get; set; }
-            
-            public EmbedConfig(EmbedConfig settings)
-            {
-                Title = settings?.Title ?? "{server.name}";
-                Description = settings?.Description ?? string.Empty;
-                Url = settings?.Url ?? string.Empty;
-                Color = settings?.Color ?? "#AC7061";
-                Image = settings?.Image ?? "attachment://image.png";
-                Thumbnail = settings?.Thumbnail ?? string.Empty;
-                Timestamp = settings?.Timestamp ?? true;
-                Fields = settings?.Fields ?? new List<EmbedFieldConfig>
-                {
-                    new EmbedFieldConfig
-                    {
-                        Title = "Player:",
-                        Value = "{player.name} ([{player.id}](https://steamcommunity.com/profiles/{player.id}))",
-                        Inline = true
-                    },
-                    new EmbedFieldConfig
-                    {
-                        Title = "Owner:",
-                        Value = "{dsl.entity.owner.name} ([{dsl.entity.owner.id}](https://steamcommunity.com/profiles/{dsl.entity.owner.id}))",
-                        Inline = true
-                    },
-                    new EmbedFieldConfig
-                    {
-                        Title = "Position:",
-                        Value = "{dsl.entity.position:0.00!x} {dsl.entity.position:0.00!y} {dsl.entity.position:0.00!z}",
-                        Inline = true
-                    },
-                    new EmbedFieldConfig
-                    {
-                        Title = "Item:",
-                        Value = "{dsl.entity.name}",
-                        Inline = true
-                    },
-                    new EmbedFieldConfig
-                    {
-                        Title = "Texture Index:",
-                        Value = "{dsl.entity.textureindex}",
-                        Inline = true
-                    }
-                };
-                Footer = new FooterConfig(settings?.Footer);
-            }
-        }
-        #endregion
-
-        #region Discord\EmbedFieldConfig.cs
-        public class EmbedFieldConfig
-        {
-            [JsonProperty("Title")]
-            public string Title { get; set; }
-            
-            [JsonProperty("Value")]
-            public string Value { get; set; }
-            
-            [JsonProperty("Inline")]
-            public bool Inline { get; set; }
-        }
-        #endregion
-
-        #region Discord\FooterConfig.cs
-        public class FooterConfig
-        {
-            [JsonProperty("Icon Url")]
-            public string IconUrl { get; set; }
-            
-            [JsonProperty("Text")]
-            public string Text { get; set; }
-            
-            [JsonProperty("Enabled")]
-            public bool Enabled { get; set; }
-            
-            public FooterConfig(FooterConfig settings)
-            {
-                IconUrl = settings?.IconUrl ?? string.Empty;
-                Text = settings?.Text ?? string.Empty;
-                Enabled = settings?.Enabled ?? true;
-            }
-        }
-        #endregion
-
-        #region Discord\MessageConfig.cs
-        public class MessageConfig
-        {
-            [JsonProperty("content")]
-            public string Content { get; set; }
-            
-            [JsonProperty("embeds")]
-            public List<EmbedConfig> Embeds { get; set; }
-            
-            public MessageConfig(MessageConfig settings)
-            {
-                Content = settings?.Content ?? string.Empty;
-                Embeds = settings?.Embeds ?? new List<EmbedConfig> { new EmbedConfig(null) };
-            }
-        }
-        #endregion
-
-        #region Enums\ErasedMode.cs
-        public enum ErasedMode
+        #region Enums\EraseMode.cs
+        public enum EraseMode
         {
             None,
             Url,
             Text
+        }
+        #endregion
+
+        #region Ids\ButtonId.cs
+        [JsonConverter(typeof(ButtonIdConverter))]
+        public readonly struct ButtonId : IEquatable<ButtonId>
+        {
+            public readonly string Id;
+            
+            public ButtonId(string id)
+            {
+                Id = id;
+            }
+            
+            public bool Equals(ButtonId other) => Id == other.Id;
+            
+            public override bool Equals(object obj) => obj is ButtonId other && Equals(other);
+            
+            public override int GetHashCode() => Id != null ? Id.GetHashCode() : 0;
+        }
+        #endregion
+
+        #region Ids\StateKey.cs
+        public readonly struct StateKey : IDiscordKey
+        {
+            public readonly string State;
+            
+            public StateKey(string state)
+            {
+                State = state;
+            }
+            
+            public override string ToString() => State;
         }
         #endregion
 
@@ -1821,7 +1674,33 @@ namespace Oxide.Plugins
             IPlayer Player { get; }
             BaseEntity Entity { get; }
             int ItemId { get; }
-            uint TextureIndex { get; }
+            byte TextureIndex { get; }
+        }
+        #endregion
+
+        #region Json\ButtonIdConverter.cs
+        public class ButtonIdConverter : JsonConverter
+        {
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+            {
+                ButtonId id = (ButtonId)value;
+                writer.WriteValue(id.Id);
+            }
+            
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+            {
+                if (reader.TokenType == JsonToken.String)
+                {
+                    return new ButtonId(reader.Value.ToString());
+                }
+                
+                throw new JsonException($"Unexpected token {reader.TokenType} when parsing ButtonID.");
+            }
+            
+            public override bool CanConvert(Type objectType)
+            {
+                return typeof(ButtonId) == objectType;
+            }
         }
         #endregion
 
@@ -1833,24 +1712,169 @@ namespace Oxide.Plugins
             public const string KickReason = nameof(KickReason);
             public const string BanReason = nameof(BanReason);
             public const string BlockedMessage = nameof(BlockedMessage);
-            public const string ActionMessage = nameof(ActionMessage);
-            public const string DeletedLog = nameof(DeletedLog);
-            public const string DeletedButtonCache = nameof(DeletedButtonCache);
-            public const string SignArtistTitle = nameof(SignArtistTitle);
-            public const string SignArtistValue = nameof(SignArtistValue);
+        }
+        #endregion
+
+        #region Placeholders\PlaceholderDataKeys.cs
+        public class PlaceholderDataKeys
+        {
+            public static readonly PlaceholderDataKey Owner = new("owner");
+            public static readonly PlaceholderDataKey State = new("state");
+            public static readonly PlaceholderDataKey PlayerMessage = new("message.player");
+            public static readonly PlaceholderDataKey ServerMessage = new("message.server");
+            public static readonly PlaceholderDataKey SignArtistUrl = new("signartist.url");
+            public static readonly PlaceholderDataKey Command = new("command");
+            public static readonly PlaceholderDataKey ButtonId = new("buttonid");
+            public static readonly PlaceholderDataKey MessageId = new("message.id");
+            public static readonly PlaceholderDataKey MessageState = new("message.staate");
+            public static readonly PlaceholderDataKey PlayerId = new("playerid");
+        }
+        #endregion
+
+        #region Placeholders\PlaceholderKeys.cs
+        public class PlaceholderKeys
+        {
+            public static readonly PlaceholderKey EntityId = new(nameof(DiscordSignLogger), "entity.id");
+            public static readonly PlaceholderKey EntityName = new(nameof(DiscordSignLogger), "entity.name");
+            public static readonly PlaceholderKey TextureIndex = new(nameof(DiscordSignLogger), "entity.textureindex");
+            public static readonly PlaceholderKey Position = new(nameof(DiscordSignLogger), "entity.position");
+            public static readonly PlaceholderKey ItemName = new(nameof(DiscordSignLogger), "item.name");
+            public static readonly PlaceholderKey PlayerMessage = new(nameof(DiscordSignLogger), "message.player");
+            public static readonly PlaceholderKey ServerMessage = new(nameof(DiscordSignLogger), "message.server");
+            public static readonly PlaceholderKey SignArtistUrl = new(nameof(DiscordSignLogger), "signartist.url");
+            public static readonly PlaceholderKey Command = new(nameof(DiscordSignLogger), "command");
+            public static readonly PlaceholderKey ButtonId = new(nameof(DiscordSignLogger), "error.buttonid");
+            public static readonly PlaceholderKey MessageId = new(nameof(DiscordSignLogger), "message.id");
+            public static readonly PlaceholderKey MessageState = new(nameof(DiscordSignLogger), "message.state");
+            public static readonly PlaceholderKey PlayerId = new(nameof(DiscordSignLogger), "player.id");
             
-            public static class Format
+            public static readonly PlayerKeys OwnerKeys = new($"{nameof(DiscordSignLogger)}.owner");
+            
+        }
+        #endregion
+
+        #region State\SignUpdateState.cs
+        [ProtoContract]
+        public class SignUpdateState
+        {
+            [ProtoMember(1)]
+            public ulong PlayerId { get; set; }
+            
+            [ProtoMember(2)]
+            public ulong EntityId { get; set; }
+            
+            [ProtoMember(3)]
+            public byte TextureIndex { get; set; }
+            
+            [ProtoMember(4)]
+            public int ItemId { get; set; }
+            
+            private IPlayer _player;
+            public IPlayer Player => _player ??= DiscordSignLogger.Instance.FindPlayerById(PlayerId.ToString());
+            
+            private IPlayer _owner;
+            public IPlayer Owner => _owner ??= DiscordSignLogger.Instance.FindPlayerById(Entity.IsValid() ? Entity.OwnerID.ToString() : "0");
+            
+            private BaseEntity _entity;
+            public BaseEntity Entity => _entity ??= BaseNetworkable.serverEntities.Find(new NetworkableId(EntityId)) as BaseEntity;
+            
+            public SignUpdateState() { }
+            
+            public SignUpdateState(BaseImageUpdate update)
             {
-                private const string Base = nameof(Format) + ".";
-                public const string Days = Base + nameof(Days);
-                public const string Hours = Base + nameof(Hours);
-                public const string Minutes = Base + nameof(Minutes);
-                public const string Day = Base + nameof(Day);
-                public const string Hour = Base + nameof(Hour);
-                public const string Minute = Base + nameof(Minute);
-                public const string Second = Base + nameof(Second);
-                public const string Seconds = Base + nameof(Seconds);
-                public const string TimeField = Base + nameof(TimeField);
+                PlayerId = update.PlayerId;
+                EntityId = update.Entity.net.ID.Value;
+                
+                if (update.SupportsTextureIndex)
+                {
+                    TextureIndex = update.TextureIndex;
+                }
+                
+                if (update is PaintedItemUpdate itemUpdate)
+                {
+                    ItemId = itemUpdate.ItemId;
+                }
+            }
+            
+            public StateKey Serialize()
+            {
+                MemoryStream stream = DiscordSignLogger.Instance.Pool.GetMemoryStream();
+                Serializer.Serialize(stream, this);
+                stream.TryGetBuffer(out ArraySegment<byte> buffer);
+                string base64 = Convert.ToBase64String(buffer.AsSpan());
+                DiscordSignLogger.Instance.Pool.FreeMemoryStream(stream);
+                return new StateKey(base64);
+            }
+            
+            public static SignUpdateState Deserialize(ReadOnlySpan<char> base64)
+            {
+                Span<byte> buffer = stackalloc byte[64];
+                Convert.TryFromBase64Chars(base64, buffer, out int written);
+                MemoryStream stream = DiscordSignLogger.Instance.Pool.GetMemoryStream();
+                stream.Write(buffer[..written]);
+                stream.Flush();
+                stream.Position = 0;
+                SignUpdateState state = Serializer.Deserialize<SignUpdateState>(stream);
+                DiscordSignLogger.Instance.Pool.FreeMemoryStream(stream);
+                return state;
+            }
+        }
+        #endregion
+
+        #region Templates\TemplateKeys.cs
+        public class TemplateKeys
+        {
+            public static readonly TemplateKey NoPermission = new(nameof(NoPermission));
+            
+            public static class Action
+            {
+                private const string Base = nameof(Action) + ".";
+                
+                public static readonly TemplateKey Message = new(Base + nameof(Message));
+                public static readonly TemplateKey Button = new(Base + nameof(Button));
+            }
+            
+            public static class Errors
+            {
+                private const string Base = nameof(Errors) + ".";
+                
+                public static readonly TemplateKey FailedToParse = new(Base + nameof(FailedToParse));
+                public static readonly TemplateKey ButtonIdNotFound = new(Base + nameof(ButtonIdNotFound));
+            }
+            
+            public static class Commands
+            {
+                private const string Base = nameof(Commands) + ".";
+                
+                public static class Block
+                {
+                    private const string Base = Commands.Base + nameof(Block) + ".";
+                    
+                    public static readonly TemplateKey Success = new(Base + nameof(Success));
+                    
+                    public static class Errors
+                    {
+                        private const string Base = Block.Base + nameof(Errors) + ".";
+                        
+                        public static readonly TemplateKey PlayerNotFound = new(Base + nameof(PlayerNotFound));
+                        public static readonly TemplateKey IsAlreadyBanned = new(Base + nameof(IsAlreadyBanned));
+                    }
+                }
+                
+                public static class Unblock
+                {
+                    private const string Base = Commands.Base + nameof(Unblock) + ".";
+                    
+                    public static readonly TemplateKey Success = new(Base + nameof(Success));
+                    
+                    public static class Errors
+                    {
+                        private const string Base = Unblock.Base + nameof(Errors) + ".";
+                        
+                        public static readonly TemplateKey PlayerNotFound = new(Base + nameof(PlayerNotFound));
+                        public static readonly TemplateKey NotBanned = new(Base + nameof(NotBanned));
+                    }
+                }
             }
         }
         #endregion
@@ -1862,20 +1886,18 @@ namespace Oxide.Plugins
             public ulong PlayerId { get; }
             public string DisplayName { get; }
             public BaseEntity Entity { get; }
-            public List<SignMessage> Messages { get; }
             public bool IgnoreMessage { get; }
             public int ItemId { get; protected set; }
             
-            public uint TextureIndex { get; protected set; }
-            public abstract bool SupportsTextureIndex { get; }
+            public byte TextureIndex { get; protected set; }
+            public virtual bool SupportsTextureIndex => false;
             
-            protected BaseImageUpdate(BasePlayer player, BaseEntity entity, List<SignMessage> messages, bool ignoreMessage)
+            protected BaseImageUpdate(BasePlayer player, BaseEntity entity, bool ignoreMessage)
             {
                 Player = player.IPlayer;
                 DisplayName = player.displayName;
                 PlayerId = player.userID;
                 Entity = entity;
-                Messages = messages;
                 IgnoreMessage = ignoreMessage;
             }
             
@@ -1886,34 +1908,26 @@ namespace Oxide.Plugins
         #region Updates\FireworkUpdate.cs
         public class FireworkUpdate : BaseImageUpdate
         {
-            public override bool SupportsTextureIndex => false;
             public PatternFirework Firework => (PatternFirework)Entity;
             
-            public FireworkUpdate(BasePlayer player, PatternFirework entity, List<SignMessage> messages) : base(player, entity, messages, false)
-            {
-                
-            }
+            public FireworkUpdate(BasePlayer player, PatternFirework entity) : base(player, entity, false) { }
             
             public override byte[] GetImage()
             {
                 PatternFirework firework = Firework;
                 List<Star> stars = firework.Design.stars;
                 
-                using (Bitmap image = new Bitmap(DiscordSignLogger.Instance.FireworkImageSize, DiscordSignLogger.Instance.FireworkImageSize))
+                using Bitmap image = new(DiscordSignLogger.Instance.FireworkImageSize, DiscordSignLogger.Instance.FireworkImageSize);
+                using Graphics g = Graphics.FromImage(image);
+                for (int index = 0; index < stars.Count; index++)
                 {
-                    using (Graphics g = Graphics.FromImage(image))
-                    {
-                        for (int index = 0; index < stars.Count; index++)
-                        {
-                            Star star = stars[index];
-                            int x = (int)((star.position.x + 1) * DiscordSignLogger.Instance.FireworkHalfImageSize);
-                            int y = (int)((-star.position.y + 1) * DiscordSignLogger.Instance.FireworkHalfImageSize);
-                            g.FillEllipse(GetBrush(star.color), x, y, DiscordSignLogger.Instance.FireworkCircleSize, DiscordSignLogger.Instance.FireworkCircleSize);
-                        }
-                        
-                        return GetImageBytes(image);
-                    }
+                    Star star = stars[index];
+                    int x = (int)((star.position.x + 1) * DiscordSignLogger.Instance.FireworkHalfImageSize);
+                    int y = (int)((-star.position.y + 1) * DiscordSignLogger.Instance.FireworkHalfImageSize);
+                    g.FillEllipse(GetBrush(star.color), x, y, DiscordSignLogger.Instance.FireworkCircleSize, DiscordSignLogger.Instance.FireworkCircleSize);
                 }
+                
+                return GetImageBytes(image);
             }
             
             private Brush GetBrush(UnityEngine.Color color)
@@ -1945,10 +1959,10 @@ namespace Oxide.Plugins
             
             private byte[] GetImageBytes(Bitmap image)
             {
-                MemoryStream stream = Pool.Get<MemoryStream>();
+                MemoryStream stream = DiscordSignLogger.Instance.Pool.GetMemoryStream();
                 image.Save(stream, ImageFormat.Png);
                 byte[] bytes = stream.ToArray();
-                Pool.FreeMemoryStream(ref stream);
+                DiscordSignLogger.Instance.Pool.FreeMemoryStream(stream);
                 return bytes;
             }
         }
@@ -1959,13 +1973,12 @@ namespace Oxide.Plugins
         {
             private readonly byte[] _image;
             
-            public PaintedItemUpdate(BasePlayer player, PaintedItemStorageEntity entity, Item item, byte[] image, List<SignMessage> messages, bool ignoreMessage) : base(player, entity, messages, ignoreMessage)
+            public PaintedItemUpdate(BasePlayer player, PaintedItemStorageEntity entity, Item item, byte[] image, bool ignoreMessage) : base(player, entity, ignoreMessage)
             {
                 _image = image;
                 ItemId = item.info.itemid;
             }
             
-            public override bool SupportsTextureIndex => false;
             public override byte[] GetImage()
             {
                 return _image;
@@ -1980,7 +1993,7 @@ namespace Oxide.Plugins
             public override bool SupportsTextureIndex => true;
             public ISignage Signage => (ISignage)Entity;
             
-            public SignageUpdate(BasePlayer player, ISignage entity, List<SignMessage> messages, uint textureIndex, bool ignoreMessage = false, string url = null) : base(player, (BaseEntity)entity, messages, ignoreMessage)
+            public SignageUpdate(BasePlayer player, ISignage entity, byte textureIndex, bool ignoreMessage = false, string url = null) : base(player, (BaseEntity)entity, ignoreMessage)
             {
                 TextureIndex = textureIndex;
                 Url = url;
@@ -1990,54 +2003,7 @@ namespace Oxide.Plugins
             {
                 ISignage sign = Signage;
                 uint crc = sign.GetTextureCRCs()[TextureIndex];
-                
-                return FileStorage.server.Get(crc, FileStorage.Type.png, sign.NetworkID, TextureIndex);
-            }
-        }
-        #endregion
-
-        #region Configuration\ActionLog\ActionLogConfig.cs
-        public class ActionLogConfig
-        {
-            [JsonProperty(PropertyName = "Channel ID")]
-            public Snowflake ChannelId { get; set; }
-            
-            [JsonProperty(PropertyName = "Buttons")]
-            public List<ActionMessageButtonCommand> Buttons { get; set; }
-            
-            public ActionLogConfig(ActionLogConfig settings)
-            {
-                ChannelId = settings?.ChannelId ?? default(Snowflake);
-                Buttons = settings?.Buttons ?? new List<ActionMessageButtonCommand>
-                {
-                    new ActionMessageButtonCommand
-                    {
-                        DisplayName = "Image Message",
-                        Style = ButtonStyle.Link,
-                        Commands = new List<string> { "discord://-/channels/{dsl.action.guild.id}/{dsl.action.channel.id}/{dsl.action.message.id}" }
-                    }
-                };
-                
-                for (int index = 0; index < Buttons.Count; index++)
-                {
-                    Buttons[index] = new ActionMessageButtonCommand(Buttons[index]);
-                }
-            }
-        }
-        #endregion
-
-        #region Configuration\ActionLog\ActionMessageButtonCommand.cs
-        public class ActionMessageButtonCommand : BaseDiscordButton
-        {
-            [JsonConstructor]
-            public ActionMessageButtonCommand()
-            {
-                
-            }
-            
-            public ActionMessageButtonCommand(ActionMessageButtonCommand settings) : base(settings)
-            {
-                
+                return FileStorage.server.Get(crc, FileStorage.Type.png, sign.NetworkID, (uint)TextureIndex);
             }
         }
         #endregion
@@ -2047,6 +2013,9 @@ namespace Oxide.Plugins
         {
             [JsonProperty("Sign Artist Settings")]
             public SignArtistSettings SignArtist { get; set; }
+            
+            [JsonConstructor]
+            private PluginSettings() { }
             
             public PluginSettings(PluginSettings settings)
             {
@@ -2066,6 +2035,9 @@ namespace Oxide.Plugins
             
             [JsonProperty("Log /silt")]
             public bool LogSilt { get; set; }
+            
+            [JsonConstructor]
+            private SignArtistSettings() { }
             
             public SignArtistSettings(SignArtistSettings settings)
             {

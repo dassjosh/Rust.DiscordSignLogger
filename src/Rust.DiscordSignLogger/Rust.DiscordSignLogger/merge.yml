@@ -13,6 +13,7 @@ Merge Settings:
   # Paths to use when writing the plugin file relative to the merge config
   Plugin Output Paths:
   - ../../../
+  - D:\Servers\Full\Rust-Main\steamapps\common\rust_dedicated\server\oxide-rust\oxide\plugins
   # Oxide //References: definitions
   Reference Definitions:
   - System.Drawing

@@ -1,12 +1,11 @@
 using Oxide.Core.Libraries.Covalence;
 
-namespace Rust.SignLogger.Interfaces
+namespace Rust.SignLogger.Interfaces;
+
+public interface ILogEvent
 {
-    public interface ILogEvent
-    {
-        IPlayer Player { get; }
-        BaseEntity Entity { get; }
-        int ItemId { get; }
-        uint TextureIndex { get; }
-    }
+    IPlayer Player { get; }
+    BaseEntity Entity { get; }
+    int ItemId { get; }
+    byte TextureIndex { get; }
 }

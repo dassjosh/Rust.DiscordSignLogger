@@ -2,31 +2,55 @@
 
     <PropertyGroup>
         <TargetFramework>net48</TargetFramework>
-        <LangVersion>6</LangVersion>
+        <LangVersion>11</LangVersion>
         <RootNamespace>Rust.SignLogger</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
+      <Reference Include="Assembly-CSharp">
+        <HintPath>..\..\References\Assembly-CSharp.dll</HintPath>
+      </Reference>
       <Reference Include="Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Assembly-CSharp.dll</HintPath>
+      </Reference>
+      <Reference Include="Assembly-CSharp-firstpass">
+        <HintPath>..\..\References\Assembly-CSharp-firstpass.dll</HintPath>
       </Reference>
       <Reference Include="Assembly-CSharp-firstpass, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Assembly-CSharp-firstpass.dll</HintPath>
       </Reference>
+      <Reference Include="Facepunch.Console">
+        <HintPath>..\..\References\Facepunch.Console.dll</HintPath>
+      </Reference>
       <Reference Include="Facepunch.Console, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Facepunch.Console.dll</HintPath>
+      </Reference>
+      <Reference Include="Facepunch.Network">
+        <HintPath>..\..\References\Facepunch.Network.dll</HintPath>
       </Reference>
       <Reference Include="Facepunch.Network, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Facepunch.Network.dll</HintPath>
       </Reference>
+      <Reference Include="Facepunch.System">
+        <HintPath>..\..\References\Facepunch.System.dll</HintPath>
+      </Reference>
       <Reference Include="Facepunch.System, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Facepunch.System.dll</HintPath>
+      </Reference>
+      <Reference Include="Facepunch.Unity">
+        <HintPath>..\..\References\Facepunch.Unity.dll</HintPath>
       </Reference>
       <Reference Include="Facepunch.Unity, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Facepunch.Unity.dll</HintPath>
       </Reference>
+      <Reference Include="Facepunch.UnityEngine">
+        <HintPath>..\..\References\Facepunch.UnityEngine.dll</HintPath>
+      </Reference>
       <Reference Include="Facepunch.UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Facepunch.UnityEngine.dll</HintPath>
+      </Reference>
+      <Reference Include="mscorlib">
+        <HintPath>..\..\References\mscorlib.dll</HintPath>
       </Reference>
       <Reference Include="Oxide.Core">
         <HintPath>..\..\References\Oxide.Core.dll</HintPath>
@@ -43,20 +67,38 @@
       <Reference Include="Oxide.Rust">
         <HintPath>..\..\References\Oxide.Rust.dll</HintPath>
       </Reference>
+      <Reference Include="Oxide.Unity">
+        <HintPath>..\..\References\Oxide.Unity.dll</HintPath>
+      </Reference>
       <Reference Include="Oxide.Unity, Version=2.0.3772.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Oxide.Unity.dll</HintPath>
+      </Reference>
+      <Reference Include="Rust.Data">
+        <HintPath>..\..\References\Rust.Data.dll</HintPath>
       </Reference>
       <Reference Include="Rust.Data, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Rust.Data.dll</HintPath>
       </Reference>
+      <Reference Include="Rust.Global">
+        <HintPath>..\..\References\Rust.Global.dll</HintPath>
+      </Reference>
       <Reference Include="Rust.Global, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Rust.Global.dll</HintPath>
+      </Reference>
+      <Reference Include="Rust.Localization">
+        <HintPath>..\..\References\Rust.Localization.dll</HintPath>
       </Reference>
       <Reference Include="Rust.Localization, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\Rust.Localization.dll</HintPath>
       </Reference>
+      <Reference Include="UnityEngine">
+        <HintPath>..\..\References\UnityEngine.dll</HintPath>
+      </Reference>
       <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\UnityEngine.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.CoreModule">
+        <HintPath>..\..\References\UnityEngine.CoreModule.dll</HintPath>
       </Reference>
       <Reference Include="UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
         <HintPath>..\..\References\UnityEngine.CoreModule.dll</HintPath>
