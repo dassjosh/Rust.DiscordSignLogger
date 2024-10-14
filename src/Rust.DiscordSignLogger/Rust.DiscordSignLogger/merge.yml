@@ -48,5 +48,8 @@ Compile Settings:
   - ../../References/x64
   # Ignores the following files relative to the merge config
   Ignore Files:
-  - ../../References/Newtonsoft.Json.dll
+  - ../../References/Rust/Newtonsoft.Json.dll
+  - ../../References/Rust/Carbon.Common.dll
+  - ../../References/Rust/Carbon.dll
+  - ../../References/Rust/Carbon.SDK.dll
   Compile Log Level (Hidden, Info, Warning, Error): Error

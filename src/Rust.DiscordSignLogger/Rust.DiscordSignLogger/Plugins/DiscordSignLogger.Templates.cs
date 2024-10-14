@@ -18,7 +18,7 @@ public partial class DiscordSignLogger
             if (messages.Add(message.MessageId.Name))
             {
                 _templates.RegisterGlobalTemplateAsync(this, message.MessageId, CreateDefaultTemplate(),
-                    new TemplateVersion(1, 0, 1), new TemplateVersion(1, 0, 1));
+                    new TemplateVersion(1, 0, 2), new TemplateVersion(1, 0, 2));
             }
             else
             {
@@ -127,6 +127,12 @@ public partial class DiscordSignLogger
                         {
                             Name = "Item:",
                             Value = $"{PlaceholderKeys.EntityName}",
+                            Inline = true
+                        },
+                        new()
+                        {
+                            Name = "Is Outside:",
+                            Value = $"{PlaceholderKeys.IsOutside}",
                             Inline = true
                         },
                         new()

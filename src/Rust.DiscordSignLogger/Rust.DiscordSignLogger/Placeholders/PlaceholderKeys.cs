@@ -18,6 +18,7 @@ public class PlaceholderKeys
     public static readonly PlaceholderKey MessageId = new(nameof(DiscordSignLogger), "message.id");
     public static readonly PlaceholderKey MessageState = new(nameof(DiscordSignLogger), "message.state");
     public static readonly PlaceholderKey PlayerId = new(nameof(DiscordSignLogger), "player.id");
+    public static readonly PlaceholderKey IsOutside = new(nameof(DiscordSignLogger), "entity.isoutside");
 
     public static readonly PlayerKeys OwnerKeys = new($"{nameof(DiscordSignLogger)}.owner");
 

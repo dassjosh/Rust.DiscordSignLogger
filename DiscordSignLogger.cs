@@ -30,7 +30,7 @@ using Color = System.Drawing.Color;
 using Graphics = System.Drawing.Graphics;
 using Star = ProtoBuf.PatternFirework.Star;
 
-//DiscordSignLogger created with PluginMerge v(1.0.8.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
+//DiscordSignLogger created with PluginMerge v(1.0.9.0) by MJSU @ https://github.com/dassjosh/Plugin.Merge
 namespace Oxide.Plugins
 {
     [Info("Discord Sign Logger", "MJSU", "3.0.0")]
@@ -934,6 +934,7 @@ namespace Oxide.Plugins
             _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.Command, PlaceholderDataKeys.Command);
             _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.ButtonId, PlaceholderDataKeys.ButtonId);
             _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.PlayerId, PlaceholderDataKeys.PlayerId);
+            _placeholders.RegisterPlaceholder<SignUpdateState, bool>(this, PlaceholderKeys.IsOutside, PlaceholderDataKeys.State, state => state.Entity && state.Entity.IsOutside());
             _placeholders.RegisterPlaceholder<TemplateKey>(this, PlaceholderKeys.MessageId, PlaceholderDataKeys.MessageId);
             _placeholders.RegisterPlaceholder<StateKey, string>(this, PlaceholderKeys.MessageState, PlaceholderDataKeys.MessageState, state => state.State);
             _placeholders.RegisterPlaceholder<SignUpdateState, string>(this, PlaceholderKeys.TextureIndex, PlaceholderDataKeys.State, state =>
@@ -982,7 +983,7 @@ namespace Oxide.Plugins
                 if (messages.Add(message.MessageId.Name))
                 {
                     _templates.RegisterGlobalTemplateAsync(this, message.MessageId, CreateDefaultTemplate(),
-                    new TemplateVersion(1, 0, 1), new TemplateVersion(1, 0, 1));
+                    new TemplateVersion(1, 0, 2), new TemplateVersion(1, 0, 2));
                 }
                 else
                 {
@@ -1091,6 +1092,12 @@ namespace Oxide.Plugins
                             {
                                 Name = "Item:",
                                 Value = $"{PlaceholderKeys.EntityName}",
+                                Inline = true
+                            },
+                            new()
+                            {
+                                Name = "Is Outside:",
+                                Value = $"{PlaceholderKeys.IsOutside}",
                                 Inline = true
                             },
                             new()
@@ -1747,6 +1754,7 @@ namespace Oxide.Plugins
             public static readonly PlaceholderKey MessageId = new(nameof(DiscordSignLogger), "message.id");
             public static readonly PlaceholderKey MessageState = new(nameof(DiscordSignLogger), "message.state");
             public static readonly PlaceholderKey PlayerId = new(nameof(DiscordSignLogger), "player.id");
+            public static readonly PlaceholderKey IsOutside = new(nameof(DiscordSignLogger), "entity.isoutside");
             
             public static readonly PlayerKeys OwnerKeys = new($"{nameof(DiscordSignLogger)}.owner");
             

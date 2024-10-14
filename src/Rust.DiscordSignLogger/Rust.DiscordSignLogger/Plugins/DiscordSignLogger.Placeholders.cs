@@ -23,6 +23,7 @@ public partial class DiscordSignLogger
         _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.Command, PlaceholderDataKeys.Command);
         _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.ButtonId, PlaceholderDataKeys.ButtonId);
         _placeholders.RegisterPlaceholder<string>(this, PlaceholderKeys.PlayerId, PlaceholderDataKeys.PlayerId);
+        _placeholders.RegisterPlaceholder<SignUpdateState, bool>(this, PlaceholderKeys.IsOutside, PlaceholderDataKeys.State, state => state.Entity && state.Entity.IsOutside());
         _placeholders.RegisterPlaceholder<TemplateKey>(this, PlaceholderKeys.MessageId, PlaceholderDataKeys.MessageId);
         _placeholders.RegisterPlaceholder<StateKey, string>(this, PlaceholderKeys.MessageState, PlaceholderDataKeys.MessageState, state => state.State);
         _placeholders.RegisterPlaceholder<SignUpdateState, string>(this, PlaceholderKeys.TextureIndex, PlaceholderDataKeys.State, state =>
