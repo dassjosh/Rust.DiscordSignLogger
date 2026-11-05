@@ -34,7 +34,7 @@ public partial class DiscordSignLogger
                 uint crc = textures[index];
                 if (crc != 0)
                 {
-                    FileStorage.server.RemoveExact(crc, FileStorage.Type.png, signage.NetworkID, index);
+                    FileStorage.server.Remove(signage.NetworkID, index);
                     textures[index] = 0;
                     entity.SendNetworkUpdate();
                     HandleReplaceImage(signage, index);
@@ -46,7 +46,7 @@ public partial class DiscordSignLogger
             {
                 if (item._currentImageCrc != 0)
                 {
-                    FileStorage.server.RemoveExact(item._currentImageCrc, FileStorage.Type.png, item.net.ID, 0);
+                    FileStorage.server.Remove(item.net.ID);
                     item._currentImageCrc = 0;
                     item.SendNetworkUpdate();
                 }

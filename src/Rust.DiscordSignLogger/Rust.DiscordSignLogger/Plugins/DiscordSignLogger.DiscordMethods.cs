@@ -22,7 +22,7 @@ public partial class DiscordSignLogger
             
         StateKey encodedState = state.Serialize();
         
-        using PlaceholderData data = GetPlaceholderData(state);
+        using PlaceholderData data = GetMessagePlaceholderData(state);
         data.ManualPool();
         data.AddPlayer(state.Player)
             .Add(PlaceholderDataKeys.State, state)

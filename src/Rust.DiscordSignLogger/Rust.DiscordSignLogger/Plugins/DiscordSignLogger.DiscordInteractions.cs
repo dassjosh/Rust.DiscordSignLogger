@@ -54,7 +54,7 @@ public partial class DiscordSignLogger
         SignMessage message = _signMessages[messageId];
         interaction.CreateResponse(Client, InteractionResponseType.UpdateMessage, new InteractionCallbackData
         {
-            Components = CreateButtons(message, GetPlaceholderData(state, interaction), state.Serialize())
+            Components = CreateButtons(message, GetInteractionPlaceholderData(state, interaction), state.Serialize())
         });
     }
 

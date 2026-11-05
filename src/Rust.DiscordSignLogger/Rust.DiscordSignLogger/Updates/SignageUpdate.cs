@@ -15,7 +15,7 @@ public class SignageUpdate : BaseImageUpdate
     public override byte[] GetImage()
     { 
         ISignage sign = Signage;
-        uint crc = sign.GetTextureCRCs()[TextureIndex];
-        return FileStorage.server.Get(crc, FileStorage.Type.png, sign.NetworkID, (uint)TextureIndex);
+        //uint crc = sign.GetTextureCRCs()[TextureIndex];
+        return FileStorage.server.Get(sign.NetworkID, (uint)TextureIndex);
     }
 }

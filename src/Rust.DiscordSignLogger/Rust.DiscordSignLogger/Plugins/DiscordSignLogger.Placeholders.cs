@@ -45,9 +45,16 @@ public partial class DiscordSignLogger
         PlayerPlaceholders.RegisterPlaceholders(this, PlaceholderKeys.OwnerKeys, PlaceholderDataKeys.Owner);
     }
     
-    public PlaceholderData GetPlaceholderData(SignUpdateState state, DiscordInteraction interaction) => GetPlaceholderData(state).AddInteraction(interaction);
+    public PlaceholderData GetInteractionPlaceholderData(SignUpdateState state, DiscordInteraction interaction)
+    {
+        return GetPlaceholderData()
+            .AddInteraction(interaction)
+            .AddPlayer(state.Player) //Needs to be added after interaction so the correct player is used
+            .Add(PlaceholderDataKeys.State, state)
+            .Add(PlaceholderDataKeys.Owner, state.Owner);
+    }
 
-    public PlaceholderData GetPlaceholderData(SignUpdateState state)
+    public PlaceholderData GetMessagePlaceholderData(SignUpdateState state)
     {
         return GetPlaceholderData()
             .AddPlayer(state.Player)

@@ -19,7 +19,7 @@ public partial class DiscordSignLogger
 {
     public void RunCommand(DiscordInteraction interaction, SignUpdateState state, ImageButton button, string playerMessage, string serverMessage)
     {
-        using PlaceholderData data = GetPlaceholderData(state, interaction)
+        using PlaceholderData data = GetInteractionPlaceholderData(state, interaction)
             .AddGuild(Client, interaction.GuildId)
             .Add(PlaceholderDataKeys.PlayerMessage, playerMessage)
             .Add(PlaceholderDataKeys.ServerMessage, serverMessage);

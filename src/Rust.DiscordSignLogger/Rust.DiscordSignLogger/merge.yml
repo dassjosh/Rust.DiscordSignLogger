@@ -1,4 +1,4 @@
-# What platform to write the code file for (Oxide, uMod)
+# What platform to write the code file for (Oxide)
 Platform: Oxide
 Merge Settings:
   # Outputted plugin name
@@ -17,6 +17,8 @@ Merge Settings:
   # Oxide //References: definitions
   Reference Definitions:
   - System.Drawing
+  # Oxide //Requires: definitions
+  Requires Definitions: []
   # #define definitions
   Define Definitions: []
   # Paths to be ignored when searching for source code relative to merge config
@@ -39,6 +41,15 @@ Merge Settings:
     Write The Relative File Path In Region: true
     # Adds the code file path in a region
     Keep Code Comments: true
+Preprocessor Directive Settings:
+  # Preprocessor Directives that are required to build the plugin
+  Preprocessor Directives:
+  - # The Directive That Is Required By The Plugin
+    Directive: OXIDE
+    # The Compiler Error Message Show When The Directive Is Missing
+    Error Message: This plugin requires OXIDE
+    # If This Directive Is Enabled
+    Enabled: false
 Compile Settings:
   Assembly Paths:
   - ../../References
