@@ -8,6 +8,7 @@
 * Permanent / Temporary Image Update Bans
 * Erasing Sign Image / Replacing Sign Image With Configurable Image or Text
 * Fully Customizable Discord Embed Message
+* Sign banning / unbanning
 
 ### Sign Update
 ![](https://i.postimg.cc/R0h6c3Z5/image.png)
@@ -40,21 +41,8 @@ Please see this post to make sure you have required dependencies installed
 ```json
 {
   "Discord Bot Token": "",
-  "Action Log Settings": {
-    "Action Log Channel ID": "",
-    "Action Log Buttons": [
-      {
-        "Button Display Name": "Image Message",
-        "Button Style": "Link",
-        "Commands": [
-          "discord://-/channels/{dsl.action.guild.id}/{dsl.action.channel.id}/{dsl.action.message.id}"
-        ]
-      }
-    ]
-  },
-  "Disable Discord Button After User": true,
-  "Delete Saved Log Data After (Days)": 14.0,
-  "Delete Cached Button Data After (Days)": 14.0,
+  "Disable Discord Button After Use": true,
+  "Action Log Channel ID": "",
   "Replace Erased Image (Requires SignArtist)": {
     "Replaced Mode (None, Url, Text)": "Url",
     "URL": "https://i.postimg.cc/mD5xZ5R5/Erased-4.png",
@@ -69,148 +57,104 @@ Please see this post to make sure you have required dependencies installed
   },
   "Sign Messages": [
     {
-      "Discord Channel ID": "",
-      "Message Config": {
-        "content": "",
-        "embeds": [
-          {
-            "Title": "{server.name}",
-            "Description": "",
-            "Url": "",
-            "Embed Color (Hex Color Code)": "#AC7061",
-            "Image Url": "attachment://image.png",
-            "Thumbnail Url": "",
-            "Add Timestamp": true,
-            "Embed Fields": [
-              {
-                "Title": "Player:",
-                "Value": "{player.name} ([{player.id}](https://steamcommunity.com/profiles/{player.id}))",
-                "Inline": true
-              },
-              {
-                "Title": "Owner:",
-                "Value": "{dsl.entity.owner.name} ([{dsl.entity.owner.id}](https://steamcommunity.com/profiles/{dsl.entity.owner.id}))",
-                "Inline": true
-              },
-              {
-                "Title": "Position:",
-                "Value": "{dsl.entity.position:0.00!x} {dsl.entity.position:0.00!y} {dsl.entity.position:0.00!z}",
-                "Inline": true
-              },
-              {
-                "Title": "Item:",
-                "Value": "{dsl.entity.name}",
-                "Inline": true
-              },
-              {
-                "Title": "Texture Index:",
-                "Value": "{dsl.entity.textureindex}",
-                "Inline": true
-              }
-            ],
-            "Footer": {
-              "Icon Url": "",
-              "Text": "",
-              "Enabled": true
-            }
-          }
-        ]
-      },
-      "Button Commands": [
-        {
-          "Player Message": "",
-          "Server Message": "",
-          "Requires Permissions To Use Button": false,
-          "Allowed Discord Roles (Role ID)": [],
-          "Allowed Oxide Groups (Group Name)": [],
-          "Button Display Name": "Player Profile",
-          "Button Style": "Link",
-          "Commands": [
-            "https://steamcommunity.com/profiles/{player.id}"
-          ]
-        },
-        {
-          "Player Message": "",
-          "Server Message": "",
-          "Requires Permissions To Use Button": false,
-          "Allowed Discord Roles (Role ID)": [],
-          "Allowed Oxide Groups (Group Name)": [],
-          "Button Display Name": "Owner Profile",
-          "Button Style": "Link",
-          "Commands": [
-            "https://steamcommunity.com/profiles/{dsl.entity.owner.id}"
-          ]
-        },
-        {
-          "Player Message": "An admin erased your sign for being inappropriate",
-          "Server Message": "",
-          "Requires Permissions To Use Button": false,
-          "Allowed Discord Roles (Role ID)": [],
-          "Allowed Oxide Groups (Group Name)": [],
-          "Button Display Name": "Erase",
-          "Button Style": "Primary",
-          "Commands": [
-            "dsl.erase {dsl.entity.id} {dsl.entity.textureindex}"
-          ]
-        },
-        {
-          "Player Message": "An admin erased your sign for being inappropriate",
-          "Server Message": "",
-          "Requires Permissions To Use Button": true,
-          "Allowed Discord Roles (Role ID)": [],
-          "Allowed Oxide Groups (Group Name)": [],
-          "Button Display Name": "Sign Block (24 Hours)",
-          "Button Style": "Primary",
-          "Commands": [
-            "dsl.signblock {player.id} 1440.0"
-          ]
-        },
-        {
-          "Player Message": "An admin killed your sign for being inappropriate",
-          "Server Message": "",
-          "Requires Permissions To Use Button": true,
-          "Allowed Discord Roles (Role ID)": [],
-          "Allowed Oxide Groups (Group Name)": [],
-          "Button Display Name": "Kill Entity",
-          "Button Style": "Secondary",
-          "Commands": [
-            "entid kill {dsl.entity.id}"
-          ]
-        },
-        {
-          "Player Message": "",
-          "Server Message": "",
-          "Requires Permissions To Use Button": true,
-          "Allowed Discord Roles (Role ID)": [],
-          "Allowed Oxide Groups (Group Name)": [],
-          "Button Display Name": "Kick Player",
-          "Button Style": "Danger",
-          "Commands": [
-            "kick {player.id} \"{dsl.kick.reason}\"",
-            "dsl.erase {dsl.entity.id} {dsl.entity.textureindex}"
-          ]
-        },
-        {
-          "Player Message": "",
-          "Server Message": "",
-          "Requires Permissions To Use Button": true,
-          "Allowed Discord Roles (Role ID)": [],
-          "Allowed Oxide Groups (Group Name)": [],
-          "Button Display Name": "Ban Player",
-          "Button Style": "Danger",
-          "Commands": [
-            "ban {player.id} \"{dsl.ban.reason}\"",
-            "dsl.erase {dsl.entity.id} {dsl.entity.textureindex}"
-          ]
-        }
+      "Message ID": "DEFAULT",
+      "Discord Channel ID": "931295303640961135",
+      "Use Action Button": true,
+      "Buttons": [
+        "ERASE",
+        "SIGN_BLOCK_24_HOURS",
+        "KILL_ENTITY",
+        "KICK_PLAYER",
+        "BAN_PLAYER"
       ]
     }
   ],
+  "Buttons": [
+    {
+      "Button ID": "ERASE",
+      "Button Display Name": "Erase",
+      "Button Style": "Primary",
+      "Commands": [
+        "dsl.erase {discordsignlogger.entity.id} {discordsignlogger.entity.textureindex}"
+      ],
+      "Player Message": "An admin erased your sign for being inappropriate",
+      "Server Message": "",
+      "Show Confirmation Modal": false,
+      "Requires Permissions To Use Button": false,
+      "Allowed Discord Roles (Role ID)": [],
+      "Allowed Oxide Groups (Group Name)": []
+    },
+    {
+      "Button ID": "SIGN_BLOCK_24_HOURS",
+      "Button Display Name": "Sign Block (24 Hours)",
+      "Button Style": "Primary",
+      "Commands": [
+        "dsl.signblock {player.id} 86400"
+      ],
+      "Player Message": "You have been banned from updating signs for 24 hours.",
+      "Server Message": "",
+      "Show Confirmation Modal": false,
+      "Requires Permissions To Use Button": true,
+      "Allowed Discord Roles (Role ID)": [],
+      "Allowed Oxide Groups (Group Name)": []
+    },
+    {
+      "Button ID": "KILL_ENTITY",
+      "Button Display Name": "Kill Entity",
+      "Button Style": "Secondary",
+      "Commands": [
+        "entid kill {discordsignlogger.entity.id}"
+      ],
+      "Player Message": "An admin killed your sign for being inappropriate",
+      "Server Message": "",
+      "Show Confirmation Modal": true,
+      "Requires Permissions To Use Button": false,
+      "Allowed Discord Roles (Role ID)": [],
+      "Allowed Oxide Groups (Group Name)": []
+    },
+    {
+      "Button ID": "KICK_PLAYER",
+      "Button Display Name": "Kick Player",
+      "Button Style": "Danger",
+      "Commands": [
+        "kick {player.id} \"{discordsignlogger.message.player}\"",
+        "dsl.erase {discordsignlogger.entity.id} {discordsignlogger.entity.textureindex}"
+      ],
+      "Player Message": "",
+      "Server Message": "",
+      "Show Confirmation Modal": true,
+      "Requires Permissions To Use Button": false,
+      "Allowed Discord Roles (Role ID)": [],
+      "Allowed Oxide Groups (Group Name)": []
+    },
+    {
+      "Button ID": "BAN_PLAYER",
+      "Button Display Name": "Ban Player",
+      "Button Style": "Danger",
+      "Commands": [
+        "ban {player.id} \"{discordsignlogger.message.player}\"",
+        "dsl.erase {discordsignlogger.entity.id} {discordsignlogger.entity.textureindex}"
+      ],
+      "Player Message": "",
+      "Server Message": "",
+      "Show Confirmation Modal": true,
+      "Requires Permissions To Use Button": false,
+      "Allowed Discord Roles (Role ID)": [],
+      "Allowed Oxide Groups (Group Name)": []
+    }
+  ],
+  "PluginSettings": {
+    "Sign Artist Settings": {
+      "Log /sil": true,
+      "Log /sili": true,
+      "Log /silt": true
+    }
+  },
   "Discord Extension Log Level (Verbose, Debug, Info, Warning, Error, Exception, Off)": "Info"
 }
 ```
-  
-**Note**: You can use Thread Channel ID's for Channel ID's as of version 1.0.8  
+
+**Note**: You can use Thread Channel ID's for Channel ID's as of version 1.0.8
 
 ### Button Commands
 Button commands are run as server console commands. Any command that can be ran from the console will work as a button command
@@ -230,52 +174,24 @@ Below is a list of button styles that can be used for your "Button Style" in the
 #### Link
 ![](https://i.postimg.cc/3xCVgRbB/image.png)
 
-## Placeholders
-This plugin supports all default PlaceholderApi placeholders and adds some additional ones listed below.
-
-`{dsl.entity.id}` - Returns the entity ID  
-`{dsl.entity.textureindex}` - Returns the texture index for the image  
-`{dsl.entity.name}` - Returns the entity item name  
-`{dsl.entity.owner.id}` - Returns the entity owner steam id  
-`{dsl.entity.owner.name}` - Returns the entity owner player name  
-`{dsl.entity.position}` - Returns the entity position on the server  
-`{dsl.signartist.url}` - Returns the sign artist url  
-`{dsl.discord.user.id}` - Returns the discord user ID of the user who clicked on the button  
-`{dsl.discord.user.name}` - Returns the discord user name of the user who clicked on the button  
-`{dsl.kick.reason}` - Returns the kick reason lang message  
-`{dsl.ban.reason}` - Returns the ban reason lang message  
-`{dsl.action.guild.id}` - Actioned Message Guild ID  
-`{dsl.action.channel.id}` - Actioned Message Channel ID  
-`{dsl.action.message.id}` - Actioned Message Message ID
-
 ## Commands
 
+### Server
 `dsl.erase {entityId} {textureIndex}` - Will erase the image from the entity id with the given index  
 `dsl.signblock {playerId} {durationInSeconds}`  - Will block a player from updating a sign for specified minutes. If no time is specified block will be permanent.  
 `dsl.signunblock {playerId}` - Will unblock a previous blocked player. Allowing them to update signs again.
+
+### Discord
+`/dsl block - blocks the player from updating signs`
+`/dsl unblock - allows previously blocked player to update signs`
 
 ## Localization
 ```json
 {
   "Chat": "<color=#bebebe>[<color=#de8732>Discord Sign Logger</color>] {0}</color>",
   "NoPermission": "You do not have permission to perform this action",
-  "KickReason": "You have been kicked for an inappropriate sign/firework image",
-  "BanReason": "You have been banned for an inappropriate sign/firework image",
-  "SignBannedMessage": "You're not allowed to update this sign because you have been banned. Your ban will expire in {0}.",
-  "FireworkBannedMessage": "You're not allowed to update this firework because you have been banned. Your ban will expire in {0}.",
-  "ActionMessage": "[Discord Sign Logger] <@{dsl.discord.user.id}> ran command \"{dsl.command}\"",
-  "DeletedLog": "The log data for this message was not found. If it's older than {0} days then it may have been deleted.",
-  "DeletedButtonCache": "Button was not found in cache. If this message is older than {0} days then it may have been deleted.",
-  "Format.Day": "day ",
-  "Format.Days": "days ",
-  "Format.Hour": "hour ",
-  "Format.Hours": "hours ",
-  "Format.Minute": "minute ",
-  "Format.Minutes": "minutes ",
-  "Format.Second": "second",
-  "Format.Seconds": "seconds",
-  "Format.TimeField": "<color=#de8732>{0}</color> {1}",
-  "SignArtistTitle": "Sign Artist URL:",
-  "SignArtistValue": "[URL]({dsl.signartist.url})"
+  "BlockedMessage": "You're not allowed to update this sign/firework because you have been blocked. Your block will expire in {0}.",
+  "KickReason": "Inappropriate sign/firework image",
+  "BanReason": "Inappropriate sign/firework image"
 }
 ```
